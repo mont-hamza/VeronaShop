@@ -1,0 +1,25 @@
+﻿
+<MudNavMenu>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
+    <MudNavLink Href="shop" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingCart">Shop</MudNavLink>
+    <MudNavLink Href="cart" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingBasket">Cart</MudNavLink>
+    <MudNavLink Href="checkout" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Payment">Checkout</MudNavLink>
+
+    <MudNavGroup Title="Account" Icon="@Icons.Material.Filled.AccountCircle">
+        <MudNavLink Href="/account/login" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Login">Login</MudNavLink>
+        <MudNavLink Href="/account/register" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AppRegistration">Register</MudNavLink>
+    </MudNavGroup>
+
+    <AuthorizeView Roles="Admin">
+        <Authorized>
+            <MudNavGroup Title="Admin" Icon="@Icons.Material.Filled.AdminPanelSettings">
+                <MudNavLink Href="admin" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">Overview</MudNavLink>
+                <MudNavLink Href="admin/products" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Inventory">Products</MudNavLink>
+                <MudNavLink Href="admin/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Receipt">Orders</MudNavLink>
+                <MudNavLink Href="admin/users" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Group">Users</MudNavLink>
+            </MudNavGroup>
+        </Authorized>
+    </AuthorizeView>
+</MudNavMenu>
+
+

@@ -1,0 +1,59 @@
+@page "/shop"
+@inject VeronaShop.Data.Entites.ApplicationDbContext Db
+@inject VeronaShop.Services.CartService CartService
+@using System.Linq
+@using Microsoft.EntityFrameworkCore
+
+<h3>Shop</h3>
+
+@if (loadError != null)
+{
+    <p class="text-danger">@loadError</p>
+}
+else if (products == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div>
+    @foreach (var p in products)
+    {
+        <div class="product">
+            <h4><a href="/product/@p.Id">@p.Name</a></h4>
+            <img src="@(string.IsNullOrEmpty(p.ImageUrl) ? "images/placeholder.svg" : p.ImageUrl)" alt="@p.Name" style="width:120px;height:120px;object-fit:cover" />
+            <p>@p.Description</p>
+            <p>Price: @p.Price</p>
+            <button @onclick="() => AddToCart(p.Id)">Add to cart</button>
+        </div>
+    }
+    </div>
+}
+
+@code {
+    private List<VeronaShop.Data.Entites.Product> products;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            products = await Db.Products.ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            // show a friendly message for DB connectivity issues
+            loadError = "Unable to load products. Please check your database connection or try again later.";
+            Console.Error.WriteLine(ex);
+        }
+    }
+
+    private string loadError;
+
+    private async Task AddToCart(int productId)
+    {
+        // simple session id for demo
+        var sessionId = "demo-session";
+        var cart = await CartService.GetOrCreateCartAsync(sessionId);
+        await CartService.AddToCartAsync(cart, productId, 1);
+    }
+}

@@ -1,0 +1,27 @@
+@page "/product/{id:int}"
+@inject VeronaShop.Data.Entites.ApplicationDbContext Db
+@using Microsoft.EntityFrameworkCore
+@code {
+    [Parameter] public int id { get; set; }
+    private VeronaShop.Data.Entites.Product product;
+    protected override async Task OnParametersSetAsync()
+    {
+        product = await Db.Products.Include(p => p.Category).Include(p => p.Supplier).FirstOrDefaultAsync(p => p.Id == id);
+    }
+}
+
+@if (product == null)
+{
+    <p>Product not found.</p>
+}
+else
+{
+    <div class="product-detail">
+        <img src="@(string.IsNullOrEmpty(product.ImageUrl) ? "images/placeholder.svg" : product.ImageUrl)" alt="@product.Name" style="max-width:300px;height:auto;object-fit:cover" />
+        <h2>@product.Name</h2>
+        <p>@product.Description</p>
+        <p>Price: @product.Price.ToString("C")</p>
+        <p>Stock: @product.StockQuantity</p>
+        <a href="/shop">Back to shop</a>
+    </div>
+}

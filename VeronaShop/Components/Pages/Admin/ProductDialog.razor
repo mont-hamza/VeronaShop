@@ -1,0 +1,105 @@
+@using VeronaShop.Data.Entites
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ApplicationDbContext Db
+@inject ISnackbar Snackbar
+
+<MudPaper Class="pa-3">
+    <EditForm Model="Model" OnValidSubmit="HandleValidSubmit" FormName="ProductForm">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="Model.Name" Label="Name" Required="true" />
+            <MudTextField @bind-Value="Model.SKU" Label="SKU" />
+            <MudTextField @bind-Value="Model.Price" Label="Price" InputType="InputType.Number" Required="true" />
+            <MudTextField @bind-Value="Model.StockQuantity" Label="Stock Quantity" InputType="InputType.Number" />
+
+            <MudSelect T="int?" Label="Category" @bind-Value="Model.CategoryId">
+                <MudSelectItem T="int?" Value="null">(none)</MudSelectItem>
+                @foreach (var c in categories)
+                {
+                    <MudSelectItem T="int?" Value="@c.Id">@c.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect T="int?" Label="Supplier" @bind-Value="Model.SupplierId">
+                <MudSelectItem T="int?" Value="null">(none)</MudSelectItem>
+                @foreach (var s in suppliers)
+                {
+                    <MudSelectItem T="int?" Value="@s.Id">@s.CompanyName</MudSelectItem>
+                }
+            </MudSelect>
+
+            <InputFile OnChange="OnInputFileChange" />
+            @if (!string.IsNullOrEmpty(previewUrl))
+            {
+                <img src="@previewUrl" style="max-width:200px;max-height:200px" />
+            }
+
+            <div class="mt-2">
+                <MudButton Type="Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+            </div>
+        </EditForm>
+    </MudPaper>
+
+@code{
+    [Parameter] public Product Model { get; set; }
+    [Parameter] public EventCallback<bool> OnSaved { get; set; }
+
+    private List<Category> categories = new();
+    private List<Supplier> suppliers = new();
+    private IBrowserFile file;
+    private string previewUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await Db.Categories.OrderBy(c => c.Name).ToListAsync();
+        suppliers = await Db.Suppliers.OrderBy(s => s.CompanyName).ToListAsync();
+        previewUrl = Model?.ImageUrl;
+    }
+
+    private async Task OnInputFileChange(InputFileChangeEventArgs e)
+    {
+        file = e.File;
+        // simple in-memory preview via data URL
+        var buffer = new byte[file.Size];
+        await file.OpenReadStream(1024 * 1024).ReadAsync(buffer);
+        previewUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}";
+        Model.ImageUrl = previewUrl; // store data url for demo; production should upload to blob/storage
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (Model.Id == 0)
+        {
+            Model.CreatedAt = DateTimeOffset.UtcNow;
+            Db.Products.Add(Model);
+            await Db.SaveChangesAsync();
+            Snackbar.Add("Product created", Severity.Success);
+        }
+        else
+        {
+            var existing = await Db.Products.FindAsync(Model.Id);
+            if (existing != null)
+            {
+                existing.Name = Model.Name;
+                existing.SKU = Model.SKU;
+                existing.Price = Model.Price;
+                existing.StockQuantity = Model.StockQuantity;
+                existing.CategoryId = Model.CategoryId;
+                existing.SupplierId = Model.SupplierId;
+                existing.ImageUrl = Model.ImageUrl;
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+                await Db.SaveChangesAsync();
+                Snackbar.Add("Product updated", Severity.Success);
+            }
+        }
+
+        await OnSaved.InvokeAsync(true);
+    }
+
+    private void Cancel()
+    {
+        OnSaved.InvokeAsync(false);
+    }
+}

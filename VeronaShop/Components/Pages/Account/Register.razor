@@ -1,0 +1,87 @@
+@page "/account/register"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using VeronaShop.Data.Entites
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject ApplicationDbContext Db
+@inject NavigationManager Navigation
+
+<h3>Register</h3>
+
+<EditForm Model="registerModel" OnValidSubmit="HandleRegister" FormName="RegisterForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div>
+        <label>Username</label>
+        <InputText @bind-Value="registerModel.UserName" />
+    </div>
+    <div>
+        <label>Email</label>
+        <InputText @bind-Value="registerModel.Email" />
+    </div>
+    <div>
+        <label>Password</label>
+        <InputText @bind-Value="registerModel.Password" type="password" />
+    </div>
+    <div>
+        <label>Display Name</label>
+        <InputText @bind-Value="registerModel.DisplayName" />
+    </div>
+
+    <button type="submit">Register</button>
+</EditForm>
+
+@code {
+    private RegisterModel registerModel = new RegisterModel();
+
+    public class RegisterModel
+    {
+        [Required]
+        public string UserName { get; set; }
+        [Required, EmailAddress]
+        public string Email { get; set; }
+        [Required, MinLength(6)]
+        public string Password { get; set; }
+        public string DisplayName { get; set; }
+    }
+
+    private async Task HandleRegister()
+    {
+        var user = new VeronaShop.Data.Entites.ApplicationUser
+        {
+            UserName = registerModel.UserName,
+            Email = registerModel.Email,
+            DisplayName = registerModel.DisplayName,
+            EmailConfirmed = true
+        };
+
+        var result = await UserManager.CreateAsync(user, registerModel.Password);
+        if (result.Succeeded)
+        {
+            // create Customer record
+            var customer = new VeronaShop.Data.Entites.Customer
+            {
+                Name = registerModel.DisplayName ?? registerModel.UserName,
+                Email = registerModel.Email,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            Db.Customers.Add(customer);
+            await Db.SaveChangesAsync();
+
+            // link customer to identity user
+            customer.IdentityUserId = user.Id;
+            Db.Customers.Update(customer);
+            await Db.SaveChangesAsync();
+
+            // sign in
+            await SignInManager.SignInAsync(user, isPersistent: false);
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            // TODO: show errors
+        }
+    }
+}

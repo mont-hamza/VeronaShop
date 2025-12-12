@@ -1,0 +1,225 @@
+@page "/admin/products"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using VeronaShop.Data.Entites
+@using MudBlazor
+@attribute [Authorize(Roles = "Admin")]
+
+<MudPaper Class="pa-4">
+    <div class="d-flex justify-space-between align-center">
+        <h3>Manage Products</h3>
+        <MudTextField Placeholder="Search..." @bind-Value="search" Adornment="Adornment.Start" AdornmentIcon="Icons.Material.Filled.Search" Class="mr-2" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNew">Add product</MudButton>
+    </div>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <MudAlert Severity="Severity.Success" Elevation="0">@message</MudAlert>
+    }
+
+    @if (editingProduct != null)
+    {
+        <MudPaper Class="pa-3 mt-3">
+            <EditForm Model="editingProduct" OnValidSubmit="@SaveProduct" FormName="AdminProductForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <MudTextField @bind-Value="editingProduct.Name" Label="Name" Required="true" />
+                <MudTextField @bind-Value="editingProduct.SKU" Label="SKU" />
+                <MudTextField @bind-Value="editingProduct.ImageUrl" Label="Image URL" />
+                <MudTextField @bind-Value="editingProduct.Price" Label="Price" InputType="InputType.Number" Required="true" />
+                <MudTextField @bind-Value="editingProduct.DiscountPrice" Label="Discount Price" InputType="InputType.Number" />
+                <MudTextField @bind-Value="editingProduct.StockQuantity" Label="Stock Quantity" InputType="InputType.Number" />
+                <MudCheckBox T="bool" @bind-Checked="editingProduct.IsPublished">Published</MudCheckBox>
+
+                <div class="mt-2">
+                    <MudButton Type="Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="@(e => CancelEdit())">Cancel</MudButton>
+                </div>
+            </EditForm>
+        </MudPaper>
+    }
+
+    <MudTable T="Product" Items="displayedProducts" Dense="true" Hover="true" Class="mt-4">
+        <HeaderContent>
+            <MudTh>Id</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Price</MudTh>
+            <MudTh>Stock</MudTh>
+            <MudTh>Category</MudTh>
+            <MudTh>Supplier</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Id">@context.Id</MudTd>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Price">@context.Price.ToString("C")</MudTd>
+            <MudTd DataLabel="Stock">@context.StockQuantity</MudTd>
+            <MudTd DataLabel="Category">@context.Category?.Name</MudTd>
+            <MudTd DataLabel="Supplier">@context.Supplier?.CompanyName</MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(e => Edit(context))">Edit</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(e => PromptDelete(context))">Delete</MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <div class="d-flex justify-space-between align-center mt-2">
+        <div>Page: @(page + 1)</div>
+        <div>
+            <MudButton Disabled="@(page == 0)" OnClick="@( () => { page = Math.Max(0, page - 1); })">Previous</MudButton>
+            <MudButton Disabled="@(filteredProducts.Count() <= (page + 1) * pageSize)" OnClick="@( () => { page++; })">Next</MudButton>
+        </div>
+    </div>
+
+    @if (productToDelete != null)
+    {
+        <MudPaper Class="pa-3 mt-3">
+            <p>Are you sure you want to delete <strong>@productToDelete.Name</strong>?</p>
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@(e => ConfirmDelete())">Delete</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(e => CancelDelete())">Cancel</MudButton>
+        </MudPaper>
+    }
+</MudPaper>
+
+@code {
+    private List<Product> products = new();
+    private List<Product> filteredProducts = new();
+    private string search;
+    private Product editingProduct;
+    private Product productToDelete;
+    private string message;
+
+    [Inject] private ApplicationDbContext Db { get; set; }
+
+    [Inject] IDialogService DialogService { get; set; }
+    [Inject] ISnackbar Snackbar { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        products = await Db.Products.Include(p => p.Category).Include(p => p.Supplier).OrderByDescending(p => p.CreatedAt).ToListAsync();
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            filteredProducts = products.ToList();
+        else
+            filteredProducts = products.Where(p => p.Name.Contains(search, StringComparison.OrdinalIgnoreCase) || (p.SKU ?? "").Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    // client-side paging/sorting/filtering
+    private int page = 0;
+    private int pageSize = 10;
+    private IEnumerable<Product> displayedProducts => filteredProducts.Skip(page * pageSize).Take(pageSize);
+
+    private void ApplySearch(ChangeEventArgs args)
+    {
+        search = args?.Value?.ToString();
+        ApplyFilter();
+    }
+
+    // dialog-based create/edit removed for simplicity; use inline form
+
+    private void CreateNew()
+    {
+        editingProduct = new Product
+        {
+            Name = string.Empty,
+            ImageUrl = string.Empty,
+            Price = 0m,
+            CreatedAt = DateTimeOffset.UtcNow,
+            IsPublished = true
+        };
+    }
+
+    private void Edit(Product p)
+    {
+        editingProduct = new Product
+        {
+            Id = p.Id,
+            Name = p.Name,
+            SKU = p.SKU,
+            Description = p.Description,
+            Price = p.Price,
+            DiscountPrice = p.DiscountPrice,
+            StockQuantity = p.StockQuantity,
+            IsPublished = p.IsPublished,
+            ImageUrl = p.ImageUrl,
+            CategoryId = p.CategoryId,
+            SupplierId = p.SupplierId,
+            CreatedAt = p.CreatedAt,
+            UpdatedAt = p.UpdatedAt
+        };
+    }
+
+    private void CancelEdit()
+    {
+        editingProduct = null;
+    }
+
+    private async Task SaveProduct()
+    {
+        if (editingProduct.Id == 0)
+        {
+            editingProduct.CreatedAt = DateTimeOffset.UtcNow;
+            Db.Products.Add(editingProduct);
+            message = "Product created.";
+        }
+        else
+        {
+            var existing = await Db.Products.FindAsync(editingProduct.Id);
+            if (existing != null)
+            {
+                existing.Name = editingProduct.Name;
+                existing.SKU = editingProduct.SKU;
+                existing.Description = editingProduct.Description;
+                existing.Price = editingProduct.Price;
+                existing.DiscountPrice = editingProduct.DiscountPrice;
+                existing.StockQuantity = editingProduct.StockQuantity;
+                existing.IsPublished = editingProduct.IsPublished;
+                existing.ImageUrl = editingProduct.ImageUrl;
+                existing.CategoryId = editingProduct.CategoryId;
+                existing.SupplierId = editingProduct.SupplierId;
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+                message = "Product updated.";
+            }
+        }
+
+        await Db.SaveChangesAsync();
+        editingProduct = null;
+        await LoadProducts();
+    }
+
+    private void PromptDelete(Product p)
+    {
+        productToDelete = p;
+    }
+
+    private void CancelDelete()
+    {
+        productToDelete = null;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (productToDelete != null)
+        {
+            var existing = await Db.Products.FindAsync(productToDelete.Id);
+            if (existing != null)
+            {
+                Db.Products.Remove(existing);
+                await Db.SaveChangesAsync();
+                message = "Product deleted.";
+            }
+            productToDelete = null;
+            await LoadProducts();
+        }
+    }
+}

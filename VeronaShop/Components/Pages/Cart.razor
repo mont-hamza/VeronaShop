@@ -1,0 +1,70 @@
+@page "/cart"
+@inject VeronaShop.Services.CartService CartService
+@inject VeronaShop.Data.Entites.ApplicationDbContext Db
+@inject NavigationManager Navigation
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+
+<h3>Your Cart</h3>
+
+@if (cart == null)
+{
+    <p>Loading...</p>
+}
+else if (!cart.Items.Any())
+{
+    <p>Your cart is empty. Browse the <a href="/shop">shop</a> to add products.</p>
+}
+else
+{
+    <ul>
+        @foreach (var i in cart.Items)
+        {
+            <li>
+                <img src="@(string.IsNullOrEmpty(i.Product.ImageUrl) ? "images/placeholder.svg" : i.Product.ImageUrl)" alt="@i.Product.Name" style="width:60px;height:60px;object-fit:cover;margin-right:8px;vertical-align:middle" />
+                <a href="/product/@i.ProductId">@i.Product.Name</a> - @i.Quantity - @i.UnitPrice
+                <button @onclick="() => Remove(i.Id)">Remove</button>
+            </li>
+        }
+    </ul>
+    @if (isAuthenticated)
+    {
+        <a href="/checkout">Proceed to checkout</a>
+    }
+    else
+    {
+        <p>Please <a href="/account/login?returnUrl=/checkout">log in</a> to proceed to checkout.</p>
+        <button class="mud-button-filled" @onclick="RedirectToLogin">Log in</button>
+    }
+}
+
+@code{
+    private VeronaShop.Data.Entites.Cart cart;
+    [Inject] private VeronaShop.Services.CartSessionService CartSession { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sessionId = await CartSession.GetOrCreateSessionIdAsync();
+        cart = await CartService.GetOrCreateCartAsync(sessionId);
+
+        var authState = await authenticationStateTask;
+        isAuthenticated = authState?.User?.Identity?.IsAuthenticated == true;
+    }
+
+    private async Task Remove(int id)
+    {
+        await CartService.RemoveItemAsync(id);
+        cart = await CartService.GetOrCreateCartAsync("demo-session");
+    }
+
+    private void RedirectToLogin()
+    {
+        var returnUrl = "/checkout";
+        Navigation.NavigateTo($"/account/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
+    }
+
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    private bool isAuthenticated;
+}

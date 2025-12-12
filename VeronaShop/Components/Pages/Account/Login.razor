@@ -1,0 +1,115 @@
+@page "/account/login"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using VeronaShop.Data.Entites
+@using Microsoft.AspNetCore.WebUtilities
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject VeronaShop.Services.CartService CartService
+
+<h3>Login</h3>
+
+<EditForm Model="loginModel" OnValidSubmit="HandleLogin" FormName="LoginForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <p class="text-danger">@errorMessage</p>
+    }
+
+    <div>
+        <label>Username or Email</label>
+        <InputText @bind-Value="loginModel.UserNameOrEmail" />
+    </div>
+    <div>
+        <label>Password</label>
+        <InputText @bind-Value="loginModel.Password" type="password" />
+    </div>
+
+    <button type="submit">Login</button>
+</EditForm>
+
+@code {
+    private LoginModel loginModel = new LoginModel();
+    private string errorMessage;
+    private string returnUrl;
+
+    public class LoginModel
+    {
+        [Required]
+        public string UserNameOrEmail { get; set; }
+        [Required]
+        public string Password { get; set; }
+    }
+
+    protected override void OnInitialized()
+    {
+        // read returnUrl from query string if present
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("returnUrl", out var ru))
+        {
+            returnUrl = ru.FirstOrDefault();
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        errorMessage = null;
+        // allow login by username or email
+        ApplicationUser user = null;
+        if (loginModel.UserNameOrEmail.Contains("@"))
+        {
+            user = await UserManager.FindByEmailAsync(loginModel.UserNameOrEmail);
+        }
+        else
+        {
+            user = await UserManager.FindByNameAsync(loginModel.UserNameOrEmail);
+        }
+
+        if (user != null)
+        {
+            try
+            {
+                var result = await SignInManager.PasswordSignInAsync(user.UserName, loginModel.Password, false, false);
+                if (result.Succeeded)
+                {
+                    // merge carts: demo-session -> user cart
+                    await CartService.MergeCartAsync("demo-session", user);
+                    Navigation.NavigateTo(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
+                    return;
+                }
+
+                var pwOk = await UserManager.CheckPasswordAsync(user, loginModel.Password);
+                if (pwOk)
+                {
+                    await SignInManager.SignInAsync(user, isPersistent: false);
+                    await CartService.MergeCartAsync("demo-session", user);
+                    Navigation.NavigateTo(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
+                    return;
+                }
+
+                if (result.IsLockedOut)
+                {
+                    errorMessage = "Account locked out.";
+                    return;
+                }
+                if (result.IsNotAllowed)
+                {
+                    errorMessage = "Login not allowed. Please check if your account requires confirmation.";
+                    return;
+                }
+                errorMessage = "Invalid username or password.";
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Login error: {ex}");
+                errorMessage = "An error occurred during login. Check server logs.";
+            }
+        }
+        else
+        {
+            errorMessage = "Invalid username or password.";
+        }
+    }
+}
