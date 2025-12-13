@@ -4,6 +4,7 @@
 @using MudBlazor
 @inject ApplicationDbContext Db
 @inject ISnackbar Snackbar
+@rendermode InteractiveServer
 
 <MudPaper Class="pa-3">
     <EditForm Model="Model" OnValidSubmit="HandleValidSubmit" FormName="ProductForm">

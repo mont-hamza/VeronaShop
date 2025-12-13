@@ -1,5 +1,8 @@
 using MudBlazor.Services;
 using VeronaShop.Components;
+using System.Text.Json;
+using System.Linq;
+using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using VeronaShop.Data.Entites;
@@ -73,6 +76,35 @@ using (var scope = app.Services.CreateScope())
     var roleManager = services.GetRequiredService<RoleManager<IdentityRole<int>>>();
     // run seed
     IdentitySeed.SeedAsync(userManager, roleManager).GetAwaiter().GetResult();
+
+    // DEV-ONLY: allow resetting admin password once via file trigger
+    try
+    {
+        var resetFile = Path.Combine(AppContext.BaseDirectory, "reset-admin.json");
+        if (File.Exists(resetFile) && app.Environment.IsDevelopment())
+        {
+            var json = File.ReadAllText(resetFile);
+            var doc = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+            if (doc != null && doc.TryGetValue("password", out var newPassword))
+            {
+                var admin = userManager.FindByEmailAsync("admin@veronashop.local").GetAwaiter().GetResult();
+                if (admin != null)
+                {
+                    var token = userManager.GeneratePasswordResetTokenAsync(admin).GetAwaiter().GetResult();
+                    var res = userManager.ResetPasswordAsync(admin, token, newPassword).GetAwaiter().GetResult();
+                    if (res.Succeeded)
+                    {
+                        File.Delete(resetFile); // single-use
+                    }
+                }
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        // swallow; this is developer convenience only
+        Console.Error.WriteLine($"reset-admin failed: {ex}");
+    }
 }
 
 // Configure the HTTP request pipeline.
@@ -119,5 +151,42 @@ app.Use(async (context, next) =>
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// POST endpoint to perform cookie sign-in from browser form (ensures Set-Cookie is sent to client)
+app.MapPost("/auth/login", async (HttpContext http, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, VeronaShop.Services.CartService cartService) =>
+{
+    var form = await http.Request.ReadFormAsync();
+    var userField = form["user"].ToString();
+    var password = form["password"].ToString();
+    var returnUrl = form["returnUrl"].FirstOrDefault() ?? "/";
+    var sessionId = form["sessionId"].FirstOrDefault();
+
+    ApplicationUser user = null;
+    if (userField.Contains("@"))
+        user = await userManager.FindByEmailAsync(userField);
+    else
+        user = await userManager.FindByNameAsync(userField);
+
+    if (user == null)
+    {
+        http.Response.Redirect($"/account/login?error=invalid");
+        return Results.Redirect("/account/login?error=invalid");
+    }
+
+    var result = await signInManager.PasswordSignInAsync(user.UserName, password, false, false);
+    if (result.Succeeded)
+    {
+        // Merge cart if sessionId provided
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            try { await cartService.MergeCartAsync(sessionId, user); } catch { }
+        }
+        http.Response.Redirect(returnUrl);
+        return Results.Redirect(returnUrl);
+    }
+
+    http.Response.Redirect($"/account/login?error=invalid");
+    return Results.Redirect("/account/login?error=invalid");
+});
 
 app.Run();

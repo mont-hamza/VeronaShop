@@ -7,6 +7,8 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject NavigationManager Navigation
 @inject VeronaShop.Services.CartService CartService
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
 
 <h3>Login</h3>
 
@@ -17,6 +19,8 @@
     {
         <p class="text-danger">@errorMessage</p>
     }
+
+    
 
     <div>
         <label>Username or Email</label>
@@ -29,6 +33,14 @@
 
     <button type="submit">Login</button>
 </EditForm>
+
+<!-- Fallback: non-Blazor POST for cookie-based auth when Blazor sign-in fails due to headers started -->
+<form method="post" action="/auth/login" style="display:none" id="fallbackLoginForm">
+    <input name="user" id="fallback-user" />
+    <input name="password" id="fallback-password" />
+    <input name="returnUrl" id="fallback-returnUrl" />
+    <input name="sessionId" id="fallback-sessionId" />
+</form>
 
 @code {
     private LoginModel loginModel = new LoginModel();
@@ -78,6 +90,20 @@
                     await CartService.MergeCartAsync("demo-session", user);
                     Navigation.NavigateTo(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
                     return;
+                }
+
+                // If sign-in couldn't set cookie because headers already started, fallback to posting a non-Blazor form
+                // Always attempt non-Blazor fallback to ensure cookie is set properly when needed
+                try
+                {
+                    // include session id so server-side MergeCart can run
+                    var sessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "verona_cart_id");
+                    await JSRuntime.InvokeVoidAsync("(function(user,password,returnUrl,sessionId){ document.getElementById('fallback-user').value=user; document.getElementById('fallback-password').value=password; document.getElementById('fallback-returnUrl').value=returnUrl; document.getElementById('fallback-sessionId').value=sessionId; document.getElementById('fallbackLoginForm').submit(); })", user.UserName, loginModel.Password, string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl, sessionId);
+                    return;
+                }
+                catch
+                {
+                    // JS interop may fail in prerendering; continue to other checks
                 }
 
                 var pwOk = await UserManager.CheckPasswordAsync(user, loginModel.Password);

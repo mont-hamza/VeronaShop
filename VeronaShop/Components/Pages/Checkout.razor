@@ -1,10 +1,12 @@
 @page "/checkout"
 @attribute [Authorize]
+
 @inject VeronaShop.Data.Entites.ApplicationDbContext Db
 @inject VeronaShop.Services.CartService CartService
 @inject VeronaShop.Services.IEmailSender EmailSender
 @inject NavigationManager NavigationManager
 @using System.Linq
+@rendermode InteractiveServer
 
 <h3>Checkout</h3>
 
