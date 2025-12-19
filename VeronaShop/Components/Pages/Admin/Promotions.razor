@@ -1,0 +1,98 @@
+@page "/admin/promotions"
+@attribute [Authorize(Roles = "Admin")]
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@inject ApplicationDbContext Db
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+
+<MudPaper Class="pa-4">
+    <div class="d-flex justify-space-between align-center">
+        <MudText Typo="Typo.h5">Manage Promotions</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNew">New Promotion</MudButton>
+    </div>
+
+    @if (promos == null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else
+    {
+        <MudTable Items="promos" Dense="true" Hover="true" Class="mt-3">
+            <HeaderContent>
+                <MudTh>Id</MudTh>
+                <MudTh>Title</MudTh>
+                <MudTh>Valid</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Id">@context.Id</MudTd>
+                <MudTd DataLabel="Title">@context.Title</MudTd>
+                <MudTd DataLabel="Valid">@context.StartAt.Date.ToShortDateString() - @context.EndAt.Date.ToShortDateString()</MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@( () => Edit(context) )">Edit</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@( () => Delete(context) )">Delete</MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+
+    @if (editing != null)
+    {
+        <MudPaper Class="pa-3 mt-3">
+            <EditForm Model="editing" OnValidSubmit="Save">
+                <MudTextField @bind-Value="editing.Title" Label="Title" />
+                <MudTextField @bind-Value="editing.Description" Label="Description" />
+                <MudTextField @bind-Value="editing.StartAt" Label="StartAt" />
+                <MudTextField @bind-Value="editing.EndAt" Label="EndAt" />
+                <div class="mt-2">
+                    <MudButton Type="Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                    <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+                </div>
+            </EditForm>
+        </MudPaper>
+    }
+</MudPaper>
+
+@code {
+    private List<Promotion> promos;
+    private Promotion editing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        promos = await Db.Promotions.OrderByDescending(p => p.StartAt).ToListAsync();
+    }
+
+    private void CreateNew()
+    {
+        editing = new Promotion { StartAt = DateTimeOffset.UtcNow, EndAt = DateTimeOffset.UtcNow.AddDays(7) };
+    }
+
+    private void Edit(Promotion p)
+    {
+        editing = p;
+    }
+
+    private void Cancel()
+    {
+        editing = null;
+    }
+
+    private async Task Save()
+    {
+        if (editing.Id == 0)
+        {
+            Db.Promotions.Add(editing);
+        }
+        await Db.SaveChangesAsync();
+        editing = null;
+        promos = await Db.Promotions.OrderByDescending(p => p.StartAt).ToListAsync();
+    }
+
+    private async Task Delete(Promotion p)
+    {
+        Db.Promotions.Remove(p);
+        await Db.SaveChangesAsync();
+        promos = await Db.Promotions.OrderByDescending(p => p.StartAt).ToListAsync();
+    }
+}

@@ -1,8 +1,9 @@
 @page "/admin/products"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
-@using VeronaShop.Data.Entites
 @using MudBlazor
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
 
@@ -91,7 +92,7 @@
     private Product productToDelete;
     private string message;
 
-    [Inject] private ApplicationDbContext Db { get; set; }
+    [Inject] private IDbContextFactory<ApplicationDbContext> DbFactory { get; set; }
 
     [Inject] IDialogService DialogService { get; set; }
     [Inject] ISnackbar Snackbar { get; set; }
@@ -103,7 +104,8 @@
 
     private async Task LoadProducts()
     {
-        products = await Db.Products.Include(p => p.Category).Include(p => p.Supplier).OrderByDescending(p => p.CreatedAt).ToListAsync();
+        using var db = DbFactory.CreateDbContext();
+        products = await db.Products.Include(p => p.Category).Include(p => p.Supplier).OrderByDescending(p => p.CreatedAt).ToListAsync();
         ApplyFilter();
     }
 
@@ -170,12 +172,14 @@
         if (editingProduct.Id == 0)
         {
             editingProduct.CreatedAt = DateTimeOffset.UtcNow;
-            Db.Products.Add(editingProduct);
+            using var db = DbFactory.CreateDbContext();
+            db.Products.Add(editingProduct);
             message = "Product created.";
         }
         else
         {
-            var existing = await Db.Products.FindAsync(editingProduct.Id);
+            using var db = DbFactory.CreateDbContext();
+            var existing = await db.Products.FindAsync(editingProduct.Id);
             if (existing != null)
             {
                 existing.Name = editingProduct.Name;
@@ -193,7 +197,12 @@
             }
         }
 
-        await Db.SaveChangesAsync();
+        using (var db = DbFactory.CreateDbContext())
+        {
+            if (editingProduct.Id == 0)
+                db.Products.Add(editingProduct);
+            await db.SaveChangesAsync();
+        }
         editingProduct = null;
         await LoadProducts();
     }
@@ -212,11 +221,12 @@
     {
         if (productToDelete != null)
         {
-            var existing = await Db.Products.FindAsync(productToDelete.Id);
+            using var db = DbFactory.CreateDbContext();
+            var existing = await db.Products.FindAsync(productToDelete.Id);
             if (existing != null)
             {
-                Db.Products.Remove(existing);
-                await Db.SaveChangesAsync();
+                db.Products.Remove(existing);
+                await db.SaveChangesAsync();
                 message = "Product deleted.";
             }
             productToDelete = null;

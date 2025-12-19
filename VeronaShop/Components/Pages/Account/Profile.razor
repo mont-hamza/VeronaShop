@@ -1,0 +1,98 @@
+@page "/account/profile"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@inject UserManager<ApplicationUser> UserManager
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+@using MudBlazor
+
+<MudContainer Class="mt-6">
+    <MudPaper Class="pa-4 mx-auto" Style="max-width:720px;">
+        <MudText Typo="Typo.h5">Profile</MudText>
+
+        @if (user == null)
+        {
+            <MudText>Loading...</MudText>
+        }
+        else
+        {
+            <EditForm Model="editModel" OnValidSubmit="SaveProfile">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="editModel.FirstName" Label="First name" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="editModel.LastName" Label="Last name" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="editModel.Email" Label="Email" Disabled="true" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="editModel.DisplayName" Label="Display name" />
+                    </MudItem>
+                    <MudItem xs="12" Class="d-flex justify-end">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Type="Submit">Save</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private ApplicationUser user;
+    private ProfileModel editModel = new();
+
+    public class ProfileModel
+    {
+        public string Email { get; set; }
+        public string DisplayName { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var name = authState.User.Identity?.Name;
+        if (string.IsNullOrEmpty(name))
+        {
+            Navigation.NavigateTo("/account/login");
+            return;
+        }
+
+        user = await UserManager.FindByNameAsync(name);
+        if (user != null)
+        {
+            editModel.Email = user.Email;
+            editModel.DisplayName = user.DisplayName;
+            editModel.FirstName = user.FirstName;
+            editModel.LastName = user.LastName;
+        }
+    }
+
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; }
+
+    private async Task SaveProfile()
+    {
+        if (user == null) return;
+        user.DisplayName = editModel.DisplayName;
+        user.FirstName = editModel.FirstName;
+        user.LastName = editModel.LastName;
+        var res = await UserManager.UpdateAsync(user);
+        if (res.Succeeded)
+        {
+            Snackbar.Add("Profile saved", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to save profile", Severity.Error);
+        }
+    }
+
+    [Inject] ISnackbar Snackbar { get; set; }
+}

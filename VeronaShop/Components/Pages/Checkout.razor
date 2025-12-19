@@ -1,11 +1,13 @@
 @page "/checkout"
 @attribute [Authorize]
 
-@inject VeronaShop.Data.Entites.ApplicationDbContext Db
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject VeronaShop.Services.CartService CartService
 @inject VeronaShop.Services.IEmailSender EmailSender
 @inject NavigationManager NavigationManager
 @using System.Linq
+@using VeronaShop.Data
 @rendermode InteractiveServer
 
 <h3>Checkout</h3>
@@ -55,45 +57,46 @@ else
             CreatedAt = DateTimeOffset.UtcNow
         };
 
-        Db.Orders.Add(order);
-        await Db.SaveChangesAsync();
-
-        foreach (var it in cart.Items)
+        using (var db = DbFactory.CreateDbContext())
         {
-            var line = new VeronaShop.Data.Entites.OrderProduct
+            db.Orders.Add(order);
+            await db.SaveChangesAsync();
+
+            foreach (var it in cart.Items)
+            {
+                var line = new VeronaShop.Data.Entites.OrderProduct
+                {
+                    OrderId = order.Id,
+                    ProductId = it.ProductId,
+                    ProductName = it.Product.Name,
+                    UnitPrice = it.UnitPrice,
+                    Quantity = it.Quantity
+                };
+                db.OrderProducts.Add(line);
+            }
+
+            await db.SaveChangesAsync();
+
+            var invoice = new VeronaShop.Data.Entites.Invoice
             {
                 OrderId = order.Id,
-                ProductId = it.ProductId,
-                ProductName = it.Product.Name,
-                UnitPrice = it.UnitPrice,
-                Quantity = it.Quantity
+                IssuedAt = DateTimeOffset.UtcNow,
+                Amount = order.TotalAmount,
+                Email = cart.Customer?.Email ?? "customer@local",
+                Notes = "Invoice for your order"
             };
-            Db.OrderProducts.Add(line);
+
+            db.Invoices.Add(invoice);
+            await db.SaveChangesAsync();
+
+            // remove cart items using same short-lived context
+            var cartItems = db.CartItems.Where(ci => ci.CartId == cart.Id).ToList();
+            db.CartItems.RemoveRange(cartItems);
+            db.Carts.Remove(db.Carts.Find(cart.Id));
+            await db.SaveChangesAsync();
         }
-
-        await Db.SaveChangesAsync();
-
-        var invoice = new VeronaShop.Data.Entites.Invoice
-        {
-            OrderId = order.Id,
-            IssuedAt = DateTimeOffset.UtcNow,
-            Amount = order.TotalAmount,
-            Email = cart.Customer?.Email ?? "customer@local",
-            Notes = "Invoice for your order"
-        };
-
-        Db.Invoices.Add(invoice);
-        await Db.SaveChangesAsync();
-
-        // send email
-        await EmailSender.SendEmailAsync(invoice.Email, "Your invoice", $"Invoice #{invoice.Id} for {invoice.Amount}");
-
-        // clear cart
-        foreach (var it in cart.Items.ToList())
-        {
-            Db.CartItems.Remove(it);
-        }
-        await Db.SaveChangesAsync();
+        // send email (outside DB context)
+        await EmailSender.SendEmailAsync(order.Customer?.Email ?? cart.Customer?.Email ?? "customer@local", "Your invoice", $"Invoice for order {order.OrderNumber}");
 
         NavigationManager.NavigateTo("/");
     }

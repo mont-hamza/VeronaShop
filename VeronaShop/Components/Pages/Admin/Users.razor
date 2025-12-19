@@ -1,7 +1,100 @@
 @page "/admin/users"
-@using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "Admin")]
+@using VeronaShop.Data.Entites
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole<int>> RoleManager
+@using MudBlazor
+@rendermode InteractiveServer
 
-<h3>Manage Users</h3>
+<MudPaper Class="pa-4">
+    <div class="d-flex justify-space-between align-center">
+        <MudText Typo="Typo.h5">Users</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@LoadUsers">Refresh</MudButton>
+    </div>
 
-<p>User management UI goes here.</p>
+    <MudTable Items="users" Dense="true" Hover="true" Class="mt-3">
+        <HeaderContent>
+            <MudTh>Id</MudTh>
+            <MudTh>User</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Roles</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Id">@context.Id</MudTd>
+            <MudTd DataLabel="User">@context.UserName</MudTd>
+            <MudTd DataLabel="Email">@context.Email</MudTd>
+            <MudTd DataLabel="Roles">@context.Roles</MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@( () => EditRoles(context.Id) )">Roles</MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    @if (editingUser != null)
+    {
+        <MudPaper Class="pa-3 mt-3">
+            <MudText Typo="Typo.h6">Edit Roles for @editingUser.UserName</MudText>
+            @foreach (var r in allRoles)
+            {
+                <MudCheckBox T="bool" @bind-Checked="roleSelections[r]">@r</MudCheckBox>
+            }
+            <div class="mt-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@SaveRoles">Save</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="@CancelEdit">Cancel</MudButton>
+            </div>
+        </MudPaper>
+    }
+</MudPaper>
+
+@code {
+    private class SimpleUser { public int Id; public string UserName; public string Email; public string Roles; }
+    private List<SimpleUser> users = new();
+    private ApplicationUser editingUser;
+    private List<string> allRoles = new();
+    private Dictionary<string, bool> roleSelections = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        users.Clear();
+        var list = UserManager.Users.ToList();
+        foreach (var u in list)
+        {
+            var roles = await UserManager.GetRolesAsync(u);
+            users.Add(new SimpleUser { Id = u.Id, UserName = u.UserName, Email = u.Email, Roles = string.Join(", ", roles) });
+        }
+    }
+
+    private async Task EditRoles(int userId)
+    {
+        editingUser = await UserManager.FindByIdAsync(userId.ToString());
+        allRoles = RoleManager.Roles.Select(r => r.Name).ToList();
+        roleSelections = new Dictionary<string, bool>();
+        foreach (var r in allRoles)
+        {
+            roleSelections[r] = await UserManager.IsInRoleAsync(editingUser, r);
+        }
+    }
+
+    private async Task SaveRoles()
+    {
+        var current = await UserManager.GetRolesAsync(editingUser);
+        var toAdd = roleSelections.Where(kv => kv.Value && !current.Contains(kv.Key)).Select(kv => kv.Key).ToArray();
+        var toRemove = current.Where(r => !roleSelections[r]).ToArray();
+        if (toAdd.Any()) await UserManager.AddToRolesAsync(editingUser, toAdd);
+        if (toRemove.Any()) await UserManager.RemoveFromRolesAsync(editingUser, toRemove);
+        editingUser = null;
+        await LoadUsers();
+    }
+
+    private void CancelEdit()
+    {
+        editingUser = null;
+    }
+}

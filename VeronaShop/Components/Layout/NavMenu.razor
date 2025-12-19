@@ -7,19 +7,21 @@
 
     <MudNavGroup Title="Account" Icon="@Icons.Material.Filled.AccountCircle">
         <MudNavLink Href="/account/login" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Login">Login</MudNavLink>
+    <AuthorizeView>
+        <Authorized>
+            <MudNavLink Href="/account/profile" Icon="@Icons.Material.Filled.Person">Profile</MudNavLink>
+        </Authorized>
+    </AuthorizeView>
         <MudNavLink Href="/account/register" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AppRegistration">Register</MudNavLink>
     </MudNavGroup>
 
-    <AuthorizeView Roles="Admin">
-        <Authorized>
-            <MudNavGroup Title="Admin" Icon="@Icons.Material.Filled.AdminPanelSettings">
-                <MudNavLink Href="admin" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">Overview</MudNavLink>
-                <MudNavLink Href="admin/products" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Inventory">Products</MudNavLink>
-                <MudNavLink Href="admin/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Receipt">Orders</MudNavLink>
-                <MudNavLink Href="admin/users" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Group">Users</MudNavLink>
-            </MudNavGroup>
-        </Authorized>
-    </AuthorizeView>
+    <!-- Admin links temporarily shown for all until roles are configured -->
+    <MudNavGroup Title="Admin" Icon="@Icons.Material.Filled.AdminPanelSettings">
+        <MudNavLink Href="admin" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">Overview</MudNavLink>
+        <MudNavLink Href="admin/products" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Inventory">Products</MudNavLink>
+        <MudNavLink Href="admin/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Receipt">Orders</MudNavLink>
+        <MudNavLink Href="admin/users" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Group">Users</MudNavLink>
+    </MudNavGroup>
 </MudNavMenu>
 
 

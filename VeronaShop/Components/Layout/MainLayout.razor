@@ -1,4 +1,6 @@
 ﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Identity
+@using VeronaShop.Data.Entites
 
 <MudThemeProvider Theme="@_theme" IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
@@ -8,10 +10,23 @@
     <MudLayout>
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
-        <MudText Typo="Typo.h5" Class="ml-3">Application</MudText>
+        <MudText Typo="Typo.h5" Class="ml-3">VeronaShop</MudText>
         <MudSpacer />
         <MudIconButton Icon="@(DarkLightModeButtonIcon)" Color="Color.Inherit" OnClick="@DarkModeToggle" />
-        <MudIconButton Icon="@Icons.Material.Filled.MoreVert" Color="Color.Inherit" Edge="Edge.End" />
+        <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" Edge="Edge.End" OnClick="@( () => Navigation.NavigateTo("/cart") )">
+            <span class="mud-badge mud-badge-dot" style="position:absolute;right:6px;top:6px;background-color:var(--mud-palette-error);color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">@cartCount</span>
+        </MudIconButton>
+        <AuthorizeView>
+            <Authorized>
+                <MudMenu Icon="@Icons.Material.Filled.Person" AnchorOrigin="Origin.TopRight" TransformOrigin="Origin.TopRight">
+                    <MudMenuItem OnClick="@( () => Navigation.NavigateTo("/account/profile") )">Profile</MudMenuItem>
+                    <MudMenuItem Href="/auth/logout">Sign out</MudMenuItem>
+                </MudMenu>
+            </Authorized>
+            <NotAuthorized>
+                <MudButton Variant="Variant.Outlined" Color="Color.Inherit" OnClick="@( () => Navigation.NavigateTo("/account/login") )">Sign in</MudButton>
+            </NotAuthorized>
+        </AuthorizeView>
     </MudAppBar>
     <MudDrawer id="nav-drawer" @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
         <NavMenu />
@@ -34,6 +49,28 @@
     private bool _drawerOpen = true;
     private bool _isDarkMode = true;
     private MudTheme? _theme = null;
+    private int cartCount = 0;
+    [Inject] private VeronaShop.Services.CartService CartService { get; set; }
+    [Inject] private VeronaShop.Services.CartSessionService CartSession { get; set; }
+    [Inject] private NavigationManager Navigation { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        CartService.CartCountChanged += OnCartCountChanged;
+        try
+        {
+            var sessionId = await CartSession.GetOrCreateSessionIdAsync();
+            cartCount = await CartService.GetCartItemCountAsync(sessionId);
+        }
+        catch { }
+    }
+
+    private void OnCartCountChanged(int count)
+    {
+        cartCount = count;
+        InvokeAsync(StateHasChanged);
+    }
 
     protected override void OnInitialized()
     {
@@ -50,6 +87,13 @@
     private void DrawerToggle()
     {
         _drawerOpen = !_drawerOpen;
+    }
+
+    [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; }
+    private async Task SignOut()
+    {
+        await SignInManager.SignOutAsync();
+        Navigation.NavigateTo("/");
     }
 
     private void DarkModeToggle()
