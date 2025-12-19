@@ -1,13 +1,15 @@
 @page "/product/{id:int}"
 @rendermode InteractiveServer
-@inject VeronaShop.Data.Entites.ApplicationDbContext Db
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
 @using Microsoft.EntityFrameworkCore
+@using VeronaShop.Data
 @code {
     [Parameter] public int id { get; set; }
     private VeronaShop.Data.Entites.Product product;
     protected override async Task OnParametersSetAsync()
     {
-        product = await Db.Products.Include(p => p.Category).Include(p => p.Supplier).FirstOrDefaultAsync(p => p.Id == id);
+        using var db = DbFactory.CreateDbContext();
+        product = await db.Products.Include(p => p.Category).Include(p => p.Supplier).FirstOrDefaultAsync(p => p.Id == id);
     }
 }
 

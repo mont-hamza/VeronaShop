@@ -1,60 +1,107 @@
 @page "/shop"
-@inject VeronaShop.Data.Entites.ApplicationDbContext Db
-@inject VeronaShop.Services.CartService CartService
-@using System.Linq
 @using Microsoft.EntityFrameworkCore
-@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore.Infrastructure
+@using VeronaShop.Data
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject VeronaShop.Services.CartService CartService
+@inject VeronaShop.Services.CartSessionService CartSession
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@using MudBlazor
 
-<h3>Shop</h3>
-
-@if (loadError != null)
-{
-    <p class="text-danger">@loadError</p>
-}
-else if (products == null)
-{
-    <p>Loading...</p>
-}
-else
-{
-    <div>
-    @foreach (var p in products)
-    {
-        <div class="product">
-            <h4><a href="/product/@p.Id">@p.Name</a></h4>
-            <img src="@(string.IsNullOrEmpty(p.ImageUrl) ? "images/placeholder.svg" : p.ImageUrl)" alt="@p.Name" style="width:120px;height:120px;object-fit:cover" />
-            <p>@p.Description</p>
-            <p>Price: @p.Price</p>
-            <button @onclick="() => AddToCart(p.Id)">Add to cart</button>
-        </div>
-    }
+<MudContainer Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4">Shop</MudText>
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@NavigateToAdminProducts">Manage products</MudButton>
+            </Authorized>
+        </AuthorizeView>
     </div>
-}
+
+    @inject ISnackbar Snackbar
+
+    @if (!string.IsNullOrEmpty(loadError))
+    {
+        <MudAlert Severity="Severity.Error">@loadError</MudAlert>
+    }
+    else if (products == null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else
+    {
+        <MudGrid GutterSize="GutterSize.Small">
+            @foreach (var p in products)
+            {
+                <MudItem xs="12" sm="6" md="4" lg="3">
+                    <MudCard Class="h-100">
+                        <div style="height:160px;overflow:hidden;">
+                            <img src="@GetImage(p)" style="width:100%;height:160px;object-fit:cover" />
+                        </div>
+                        <MudCardContent>
+                            <MudText Typo="Typo.h6">@p.Name</MudText>
+                            <MudText Typo="Typo.body2" Class="mb-2">@p.Description</MudText>
+                            <MudText Typo="Typo.subtitle1" Color="Color.Primary">@p.Price.ToString("C")</MudText>
+                        </MudCardContent>
+                        <MudCardActions Class="d-flex justify-space-between">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" @onclick="@(async () => await AddToCart(p.Id))">Add to cart</MudButton>
+                            <AuthorizeView Roles="Admin">
+                                <Authorized>
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" @onclick="@(() => NavigateToEditProduct(p.Id))">Edit</MudButton>
+                                </Authorized>
+                            </AuthorizeView>
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudContainer>
 
 @code {
     private List<VeronaShop.Data.Entites.Product> products;
+    private string loadError;
+
+    private void NavigateToAdminProducts()
+    {
+        Navigation.NavigateTo("/admin/products");
+    }
+
+    private void NavigateToEditProduct(int id)
+    {
+        Navigation.NavigateTo($"/admin/products?edit={id}");
+    }
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            products = await Db.Products.ToListAsync();
+            using var db = DbFactory.CreateDbContext();
+            products = await db.Products.OrderByDescending(p => p.CreatedAt).ToListAsync();
         }
         catch (Exception ex)
         {
-            // show a friendly message for DB connectivity issues
             loadError = "Unable to load products. Please check your database connection or try again later.";
             Console.Error.WriteLine(ex);
         }
     }
 
-    private string loadError;
-
     private async Task AddToCart(int productId)
     {
-        // simple session id for demo
-        var sessionId = "demo-session";
-        var cart = await CartService.GetOrCreateCartAsync(sessionId);
-        await CartService.AddToCartAsync(cart, productId, 1);
+        try
+        {
+            var sessionId = await CartSession.GetOrCreateSessionIdAsync();
+            var cart = await CartService.GetOrCreateCartAsync(sessionId);
+            await CartService.AddToCartAsync(cart, productId, 1);
+            Snackbar.Add("Added to cart", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"AddToCart failed: {ex}");
+            Snackbar.Add("Failed to add to cart", Severity.Error);
+        }
     }
+
+    private string GetImage(VeronaShop.Data.Entites.Product p) => string.IsNullOrEmpty(p.ImageUrl) ? "images/placeholder.svg" : p.ImageUrl;
 }

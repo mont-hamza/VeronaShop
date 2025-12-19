@@ -1,59 +1,106 @@
 ﻿@page "/"
 
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.EntityFrameworkCore.Infrastructure
+@using VeronaShop.Data
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@using VeronaShop.Data.Entites
+@using MudBlazor
+
 <PageTitle>Home</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Hello, world!</MudText>
-<MudText Class="mb-8">Welcome to your new app, powered by MudBlazor and the .NET 9 Template!</MudText>
+<MudContainer Class="mt-6">
+    <div class="d-flex justify-end mb-2">
+        <AuthorizeView>
+            <Authorized>
+                <a href="/account/profile" class="mud-button-root mud-button mud-button-filled" style="text-decoration:none;padding:6px 10px;border-radius:6px">Profile</a>
+            </Authorized>
+            <NotAuthorized>
+                <a href="/account/login" class="mud-button-root mud-button mud-button-outlined" style="text-decoration:none;padding:6px 10px;border-radius:6px">Sign in</a>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+    <!-- Featured horizontal scroller (carousel-like) -->
+    <MudPaper Class="pa-3 mb-6" Style="overflow-x:auto;white-space:nowrap;">
+        @foreach (var c in carouselProducts)
+        {
+            <div style="display:inline-block; width:320px; margin-right:12px; vertical-align:top;">
+                <div style="height:240px; background:#f5f5f5; display:flex; align-items:center; justify-content:center;">
+                    <img src="@(string.IsNullOrEmpty(c.ImageUrl) ? "images/placeholder.svg" : c.ImageUrl)" alt="@c.Name" style="max-height:220px;max-width:100%;object-fit:contain" />
+                </div>
+                <div class="pa-2">
+                    <MudText Typo="Typo.h6">@c.Name</MudText>
+                    <MudText Typo="Typo.subtitle2">@c.Price.ToString("C")</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Navigation.NavigateTo("/shop"))">Shop Now</MudButton>
+                </div>
+            </div>
+        }
+    </MudPaper>
 
-<MudAlert Severity="Severity.Normal" ContentAlignment="HorizontalAlignment.Start">
-    You can find documentation and examples on our website here:
-    <MudLink Href="https://mudblazor.com" Target="_blank" Typo="Typo.body2" Color="Color.Primary">
-        <b>www.mudblazor.com</b>
-    </MudLink>
-</MudAlert>
+    <!-- Promotions -->
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6">Promotions</MudText>
+        <div class="d-flex gap-3 mt-3">
+            @foreach (var promo in promotions)
+            {
+                <MudCard Style="flex:1;min-height:120px;">
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6">@promo.Title</MudText>
+                        <MudText Typo="Typo.body2">@promo.Description</MudText>
+                    </MudCardContent>
+                </MudCard>
+            }
+        </div>
+    </MudPaper>
 
-<br />
-<MudText Typo="Typo.h5" GutterBottom="true">Interactivity in this Template</MudText>
-<br />
-<MudText Typo="Typo.body2">
-    When you opt for the "Global" Interactivity Location, <br />
-    the render modes are defined in App.razor and consequently apply to all child components.<br />
-    In this case, providers are globally set in the MainLayout.<br />
-    <br />
-    On the other hand, if you choose the "Per page/component" Interactivity Location,<br />
-    it is necessary to include the <br />
-    <br />
-    &lt;MudPopoverProvider /&gt; <br />
-    &lt;MudDialogProvider /&gt; <br />
-    &lt;MudSnackbarProvider /&gt; <br />
-    <br />
-    components on every interactive page.<br />
-    <br />
-    If a render mode is not specified for a page, it defaults to Server-Side Rendering (SSR),<br />
-    similar to this page. While MudBlazor allows pages to be rendered in SSR,<br />
-    please note that interactive features, such as buttons and dropdown menus, will not be functional.
-</MudText>
+    <!-- Posts / Announcements -->
+    <MudPaper Class="pa-4 mb-4">
+        <div class="d-flex justify-space-between align-center">
+            <MudText Typo="Typo.h6">Latest Posts</MudText>
+            <AuthorizeView Roles="Admin">
+                <Authorized>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick='@(() => Navigation.NavigateTo("/admin/posts"))'>Manage Posts</MudButton>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+        <div class="mt-3">
+            @if (!posts.Any())
+            {
+                <MudText Typo="Typo.body2">No posts yet.</MudText>
+            }
+            else
+            {
+                foreach (var post in posts)
+                {
+                    <MudCard Class="mb-2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.h6">@post.Title</MudText>
+                            <MudText Typo="Typo.body2">@post.Summary</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                }
+            }
+        </div>
+    </MudPaper>
+</MudContainer>
 
-<br />
-<MudText Typo="Typo.h5" GutterBottom="true">What's New in Blazor with the Release of .NET 9</MudText>
-<br />
+@code {
+    private List<VeronaShop.Data.Entites.Product> carouselProducts = new();
+    private List<(string Title, string Description)> promotions = new();
+    private List<(string Title, string Summary)> posts = new();
 
-<MudText Typo="Typo.h6" GutterBottom="true">Prerendering</MudText>
-<MudText Typo="Typo.body2" GutterBottom="true">
-    If you're exploring the features of .NET 9 Blazor,<br /> you might be pleasantly surprised to learn that each page is prerendered on the server,<br /> regardless of the selected render mode.<br /><br />
-    This means that you'll need to inject all necessary services on the server,<br /> even when opting for the wasm (WebAssembly) render mode.<br /><br />
-    This prerendering functionality is crucial to ensuring that WebAssembly mode feels fast and responsive,<br /> especially when it comes to initial page load times.<br /><br />
-    For more information on how to detect prerendering and leverage the RenderContext, you can refer to the following link:
-    <MudLink Href="https://github.com/dotnet/aspnetcore/issues/51468#issuecomment-1783568121" Target="_blank" Typo="Typo.body2" Color="Color.Primary">
-        More details
-    </MudLink>
-</MudText>
-
-<br />
-<MudText Typo="Typo.h6" GutterBottom="true">InteractiveAuto</MudText>
-<MudText Typo="Typo.body2">
-    A discussion on how to achieve this can be found here:
-    <MudLink Href="https://github.com/dotnet/aspnetcore/issues/51468#issue-1950424116" Target="_blank" Typo="Typo.body2" Color="Color.Primary">
-        More details
-    </MudLink>
-</MudText>
+    protected override async Task OnInitializedAsync()
+    {
+        using var db = DbFactory.CreateDbContext();
+        carouselProducts = await db.Products.OrderByDescending(p => p.CreatedAt).Take(5).ToListAsync();
+        promotions = new List<(string, string)>
+        {
+            ("Winter Sale", "Up to 50% off selected items"),
+            ("Free Shipping", "Free shipping for orders over $50"),
+        };
+        posts = new List<(string, string)>();
+    }
+}

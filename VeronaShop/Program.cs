@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using VeronaShop.Data.Entites;
 using VeronaShop.Services;
 using Microsoft.AspNetCore.Identity;
+using VeronaShop.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,18 +17,25 @@ builder.Services.AddMudServices();
 
 // Add EF Core and Identity
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+
+// Register a DbContext factory for creating short-lived DbContext instances
+builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString, sqlOptions =>
     {
-        // Enable retry on failure for transient faults
         sqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
-        // Increase command timeout for long-running commands
         sqlOptions.CommandTimeout(60);
     }));
+
+// Provide a scoped ApplicationDbContext that is created from the factory so
+// other libraries (Identity) that expect a scoped DbContext can still get one.
+builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole<int>>(options => { options.SignIn.RequireConfirmedAccount = false; })
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager();
+
+// Register MudBlazor dialog services
+// MudBlazor already registered by AddMudServices(); dialog service will be available via DI
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -46,6 +54,7 @@ builder.Services.AddScoped<IEmailSender, DevEmailSender>();
 builder.Services.AddScoped<CartService>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<CartSessionService>();
+// MudBlazor snackbar provider is registered by AddMudServices(); no manual registration required here.
 
 // Optional: register SmtpEmailSender with real settings in production
 // builder.Services.AddSingleton<IEmailSender>(new SmtpEmailSender("smtp.example.com", 587, "user@example.com", "password"));
@@ -148,18 +157,48 @@ app.Use(async (context, next) =>
     }
 });
 
+// Logout endpoint that performs a full HTTP sign-out so cookies can be removed on the response
+app.MapGet("/auth/logout", async (HttpContext http, SignInManager<ApplicationUser> signInManager, ILogger<Program> logger) =>
+{
+    try
+    {
+        await signInManager.SignOutAsync();
+        logger.LogInformation("Logged out via /auth/logout");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Logout failed");
+    }
+
+    http.Response.Redirect("/");
+    return Results.Redirect("/");
+});
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 // POST endpoint to perform cookie sign-in from browser form (ensures Set-Cookie is sent to client)
-app.MapPost("/auth/login", async (HttpContext http, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, VeronaShop.Services.CartService cartService) =>
+app.MapPost("/auth/login", async (HttpContext http, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, VeronaShop.Services.CartService cartService, ILogger<Program> logger) =>
 {
     var form = await http.Request.ReadFormAsync();
     var userField = form["user"].ToString();
     var password = form["password"].ToString();
     var returnUrl = form["returnUrl"].FirstOrDefault() ?? "/";
     var sessionId = form["sessionId"].FirstOrDefault();
+    // mask user field for logging (never log passwords)
+    string MaskUser(string u)
+    {
+        if (string.IsNullOrEmpty(u)) return u;
+        if (u.Contains("@"))
+        {
+            var parts = u.Split('@', 2);
+            return "***@" + parts[1];
+        }
+        return u.Length <= 2 ? "**" : u.Substring(0, 2) + "***";
+    }
+
+    logger.LogInformation("/auth/login called for {UserMask} (session present={HasSession})", MaskUser(userField), !string.IsNullOrEmpty(sessionId));
 
     ApplicationUser user = null;
     if (userField.Contains("@"))
@@ -169,24 +208,44 @@ app.MapPost("/auth/login", async (HttpContext http, UserManager<ApplicationUser>
 
     if (user == null)
     {
+        logger.LogWarning("Login failed: user not found for {UserMask}", MaskUser(userField));
         http.Response.Redirect($"/account/login?error=invalid");
         return Results.Redirect("/account/login?error=invalid");
     }
 
-    var result = await signInManager.PasswordSignInAsync(user.UserName, password, false, false);
-    if (result.Succeeded)
+    try
     {
-        // Merge cart if sessionId provided
-        if (!string.IsNullOrEmpty(sessionId))
+        var result = await signInManager.PasswordSignInAsync(user.UserName, password, false, false);
+        if (result.Succeeded)
         {
-            try { await cartService.MergeCartAsync(sessionId, user); } catch { }
+            // Merge cart if sessionId provided
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                try
+                {
+                    await cartService.MergeCartAsync(sessionId, user);
+                    logger.LogInformation("Merged cart for user {UserMask} from session", MaskUser(userField));
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Cart merge failed for {UserMask}", MaskUser(userField));
+                }
+            }
+            logger.LogInformation("Login succeeded for {UserMask}", MaskUser(userField));
+            http.Response.Redirect(returnUrl);
+            return Results.Redirect(returnUrl);
         }
-        http.Response.Redirect(returnUrl);
-        return Results.Redirect(returnUrl);
-    }
 
-    http.Response.Redirect($"/account/login?error=invalid");
-    return Results.Redirect("/account/login?error=invalid");
+        logger.LogWarning("SignInManager result for {UserMask}: Succeeded={Succeeded}, IsLockedOut={Locked}, IsNotAllowed={NotAllowed}, RequiresTwoFactor={TwoFactor}", MaskUser(userField), result.Succeeded, result.IsLockedOut, result.IsNotAllowed, result.RequiresTwoFactor);
+        http.Response.Redirect($"/account/login?error=invalid");
+        return Results.Redirect("/account/login?error=invalid");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Exception during /auth/login for {UserMask}", MaskUser(userField));
+        http.Response.Redirect($"/account/login?error=error");
+        return Results.Redirect("/account/login?error=error");
+    }
 });
 
 app.Run();

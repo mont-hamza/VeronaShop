@@ -1,16 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using VeronaShop.Data;
 using VeronaShop.Data.Entites;
 
 namespace VeronaShop.Services
 {
     public class CartService
     {
-        private readonly ApplicationDbContext _db;
-    private readonly CartSessionService _session;
+        private readonly IDbContextFactory<ApplicationDbContext> _dbFactory;
+        private readonly CartSessionService _session;
+        private readonly System.Threading.SemaphoreSlim _mutex = new(1, 1);
+        // Event to notify listeners when cart item count changes. Argument: current item count
+        public event Action<int>? CartCountChanged;
 
-        public CartService(ApplicationDbContext db, CartSessionService session)
+        public CartService(IDbContextFactory<ApplicationDbContext> dbFactory, CartSessionService session)
         {
-            _db = db;
+            _dbFactory = dbFactory;
             _session = session;
         }
 
@@ -21,7 +25,8 @@ namespace VeronaShop.Services
                 sessionId = await _session.GetOrCreateSessionIdAsync();
             }
 
-            var cart = await _db.Carts.Include(c => c.Items).ThenInclude(i => i.Product)
+            using var db = _dbFactory.CreateDbContext();
+            var cart = await db.Carts.Include(c => c.Items).ThenInclude(i => i.Product)
                 .FirstOrDefaultAsync(c => c.SessionId == sessionId || (customerId.HasValue && c.CustomerId == customerId));
 
             if (cart == null)
@@ -33,8 +38,16 @@ namespace VeronaShop.Services
                     CreatedAt = DateTimeOffset.UtcNow,
                     Items = new List<CartItem>()
                 };
-                _db.Carts.Add(cart);
-                await _db.SaveChangesAsync();
+                db.Carts.Add(cart);
+                await db.SaveChangesAsync();
+
+            // notify listeners
+            try
+            {
+                var count = await GetCartItemCountAsync(cart.SessionId);
+                CartCountChanged?.Invoke(count);
+            }
+            catch { }
             }
 
             return cart;
@@ -42,7 +55,8 @@ namespace VeronaShop.Services
 
         public async Task AddToCartAsync(Cart cart, int productId, int quantity)
         {
-            var product = await _db.Products.FindAsync(productId);
+            using var db = _dbFactory.CreateDbContext();
+            var product = await db.Products.FindAsync(productId);
             if (product == null) return;
 
             var item = cart.Items?.FirstOrDefault(i => i.ProductId == productId);
@@ -60,27 +74,43 @@ namespace VeronaShop.Services
                     Quantity = quantity,
                     UnitPrice = product.Price
                 };
-                _db.CartItems.Add(item);
+                db.CartItems.Add(item);
             }
 
-            await _db.SaveChangesAsync();
+            await db.SaveChangesAsync();
         }
 
         public async Task RemoveItemAsync(int cartItemId)
         {
-            var item = await _db.CartItems.FindAsync(cartItemId);
+            using var db = _dbFactory.CreateDbContext();
+            var item = await db.CartItems.Include(ci => ci.Cart).FirstOrDefaultAsync(ci => ci.Id == cartItemId);
             if (item == null) return;
-            _db.CartItems.Remove(item);
-            await _db.SaveChangesAsync();
+            var sessionId = item.Cart?.SessionId;
+            db.CartItems.Remove(item);
+            await db.SaveChangesAsync();
+
+            try
+            {
+                if (!string.IsNullOrEmpty(sessionId))
+                {
+                    var count = await GetCartItemCountAsync(sessionId);
+                    CartCountChanged?.Invoke(count);
+                }
+            }
+            catch { }
         }
 
         public async Task MergeCartAsync(string anonymousSessionId, ApplicationUser user)
         {
-            var anonCart = await _db.Carts.Include(c => c.Items).FirstOrDefaultAsync(c => c.SessionId == anonymousSessionId);
+            await _mutex.WaitAsync();
+            try
+            {
+            using var db = _dbFactory.CreateDbContext();
+            var anonCart = await db.Carts.Include(c => c.Items).FirstOrDefaultAsync(c => c.SessionId == anonymousSessionId);
             if (anonCart == null) return;
 
             // find or create user cart
-            var userCart = await _db.Carts.Include(c => c.Items).FirstOrDefaultAsync(c => c.Customer != null && c.Customer.Email == user.Email || c.CustomerId != null && c.CustomerId == user.Id);
+            var userCart = await db.Carts.Include(c => c.Items).FirstOrDefaultAsync(c => c.Customer != null && c.Customer.Email == user.Email || c.CustomerId != null && c.CustomerId == user.Id);
             if (userCart == null)
             {
                 userCart = new Cart
@@ -90,7 +120,7 @@ namespace VeronaShop.Services
                     CreatedAt = DateTimeOffset.UtcNow,
                     Items = new List<CartItem>()
                 };
-                _db.Carts.Add(userCart);
+                db.Carts.Add(userCart);
             }
 
             foreach (var item in anonCart.Items)
@@ -111,10 +141,31 @@ namespace VeronaShop.Services
                 }
             }
 
-            _db.CartItems.RemoveRange(anonCart.Items);
-            _db.Carts.Remove(anonCart);
+            db.CartItems.RemoveRange(anonCart.Items);
+            db.Carts.Remove(anonCart);
 
-            await _db.SaveChangesAsync();
+            await db.SaveChangesAsync();
+
+                try
+                {
+                    var count = await GetCartItemCountAsync(userCart.SessionId);
+                    CartCountChanged?.Invoke(count);
+                }
+                catch { }
+            }
+            finally
+            {
+                _mutex.Release();
+            }
+        }
+
+        public async Task<int> GetCartItemCountAsync(string sessionId)
+        {
+            if (string.IsNullOrEmpty(sessionId)) return 0;
+            using var db = _dbFactory.CreateDbContext();
+            var cart = await db.Carts.Include(c => c.Items).FirstOrDefaultAsync(c => c.SessionId == sessionId);
+            if (cart == null) return 0;
+            return cart.Items?.Sum(i => i.Quantity) ?? 0;
         }
     }
 }

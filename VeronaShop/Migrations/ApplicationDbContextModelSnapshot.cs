@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using VeronaShop.Data.Entites;
+using VeronaShop.Data;
 
 #nullable disable
 
@@ -182,7 +182,7 @@ namespace VeronaShop.Migrations
 
                     b.HasIndex("ApplicationUserId");
 
-                    b.ToTable("AdminProfiles");
+                    b.ToTable("AdminProfiles", (string)null);
                 });
 
             modelBuilder.Entity("VeronaShop.Data.Entites.ApplicationUser", b =>
@@ -195,6 +195,24 @@ namespace VeronaShop.Migrations
 
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
+
+                    b.Property<string>("FirstName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LastName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("City")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Country")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DateOfBirth")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -279,7 +297,7 @@ namespace VeronaShop.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.ToTable("Carts");
+                    b.ToTable("Carts", (string)null);
                 });
 
             modelBuilder.Entity("VeronaShop.Data.Entites.CartItem", b =>
@@ -308,7 +326,7 @@ namespace VeronaShop.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("CartItems");
+                    b.ToTable("CartItems", (string)null);
                 });
 
             modelBuilder.Entity("VeronaShop.Data.Entites.Category", b =>
@@ -340,7 +358,7 @@ namespace VeronaShop.Migrations
 
                     b.HasIndex("ParentCategoryId");
 
-                    b.ToTable("Categories");
+                    b.ToTable("Categories", (string)null);
                 });
 
             modelBuilder.Entity("VeronaShop.Data.Entites.Customer", b =>
@@ -405,7 +423,7 @@ namespace VeronaShop.Migrations
 
                     b.HasIndex("IdentityUserId");
 
-                    b.ToTable("Customers");
+                    b.ToTable("Customers", (string)null);
                 });
 
             modelBuilder.Entity("VeronaShop.Data.Entites.Delivery", b =>
@@ -440,7 +458,7 @@ namespace VeronaShop.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.ToTable("Deliveries");
+                    b.ToTable("Deliveries", (string)null);
                 });
 
             modelBuilder.Entity("VeronaShop.Data.Entites.Invoice", b =>
@@ -472,7 +490,7 @@ namespace VeronaShop.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.ToTable("Invoices");
+                    b.ToTable("Invoices", (string)null);
                 });
 
             modelBuilder.Entity("VeronaShop.Data.Entites.OrderProduct", b =>
@@ -506,7 +524,7 @@ namespace VeronaShop.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("OrderProducts");
+                    b.ToTable("OrderProducts", (string)null);
                 });
 
             modelBuilder.Entity("VeronaShop.Data.Entites.Orders", b =>
@@ -550,7 +568,7 @@ namespace VeronaShop.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.ToTable("Orders");
+                    b.ToTable("Orders", (string)null);
                 });
 
             modelBuilder.Entity("VeronaShop.Data.Entites.Product", b =>
@@ -612,7 +630,7 @@ namespace VeronaShop.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("Products");
+                    b.ToTable("Products", (string)null);
                 });
 
             modelBuilder.Entity("VeronaShop.Data.Entites.Supplier", b =>
@@ -659,7 +677,7 @@ namespace VeronaShop.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Suppliers");
+                    b.ToTable("Suppliers", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<int>", b =>
