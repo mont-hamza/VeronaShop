@@ -1,42 +1,77 @@
 @page "/cart"
 @inject VeronaShop.Services.CartService CartService
 @inject NavigationManager Navigation
+@inject ISnackbar Snackbar
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using VeronaShop.Data
+@using MudBlazor
 @rendermode InteractiveServer
 
 <h3>Your Cart</h3>
 
 @if (cart == null)
 {
-    <p>Loading...</p>
+    <MudProgressCircular Indeterminate="true" />
 }
 else if (!cart.Items.Any())
 {
-    <p>Your cart is empty. Browse the <a href="/shop">shop</a> to add products.</p>
+    <MudPaper Class="pa-4">Your cart is empty. Browse the <a href="/shop">shop</a> to add products.</MudPaper>
 }
 else
 {
-    <ul>
-        @foreach (var i in cart.Items)
-        {
-            <li>
-                <img src="@(string.IsNullOrEmpty(i.Product.ImageUrl) ? "images/placeholder.svg" : i.Product.ImageUrl)" alt="@i.Product.Name" style="width:60px;height:60px;object-fit:cover;margin-right:8px;vertical-align:middle" />
-                <a href="/product/@i.ProductId">@i.Product.Name</a> - @i.Quantity - @i.UnitPrice
-                <button @onclick="() => Remove(i.Id)">Remove</button>
-            </li>
-        }
-    </ul>
-    @if (isAuthenticated)
-    {
-        <a href="/checkout">Proceed to checkout</a>
-    }
-    else
-    {
-        <p>Please <a href="/account/login?returnUrl=/checkout">log in</a> to proceed to checkout.</p>
-        <button class="mud-button-filled" @onclick="RedirectToLogin">Log in</button>
-    }
+    <MudTable Items="cart.Items" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh></MudTh>
+            <MudTh>Product</MudTh>
+            <MudTh>Price</MudTh>
+            <MudTh>Quantity</MudTh>
+            <MudTh>Line</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd><img src="@(string.IsNullOrEmpty(context.Product.ImageUrl) ? "images/placeholder.svg" : context.Product.ImageUrl)" style="width:60px;height:60px;object-fit:cover" /></MudTd>
+            <MudTd><a href="/product/@context.ProductId">@context.Product.Name</a></MudTd>
+            <MudTd>@context.UnitPrice.ToString("C")</MudTd>
+            <MudTd>
+                <MudNumericField T="int" @bind-Value="context.Quantity" Min="1" Immediate="true" OnBlur="@(async () => await UpdateQuantity(context.Id, context.Quantity))" />
+            </MudTd>
+            <MudTd>@(context.UnitPrice * context.Quantity).ToString("C")</MudTd>
+            <MudTd>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="@(async ()=> await Remove(context.Id))">Remove</MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <div class="d-flex justify-end mt-4">
+        <MudPaper Class="pa-4" Style="min-width:320px;">
+            <div class="d-flex justify-space-between">
+                <div>Subtotal</div>
+                <div>@cart.Items.Sum(i => i.UnitPrice * i.Quantity).ToString("C")</div>
+            </div>
+            <div class="d-flex justify-space-between mt-2">
+                <div>Shipping</div>
+                <div>@(0m).ToString("C")</div>
+            </div>
+            <hr />
+            <div class="d-flex justify-space-between font-weight-bold">
+                <div>Total</div>
+                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity)).ToString("C")</div>
+            </div>
+
+            @if (isAuthenticated)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" OnClick="GoToCheckout">Proceed to checkout</MudButton>
+            }
+            else
+            {
+                <div class="mt-4">
+                    <p>Please <a href="/account/login?returnUrl=/checkout">log in</a> to proceed to checkout.</p>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RedirectToLogin">Log in</MudButton>
+                </div>
+            }
+        </MudPaper>
+    </div>
 }
 
 @code{
@@ -54,14 +89,45 @@ else
 
     private async Task Remove(int id)
     {
-        await CartService.RemoveItemAsync(id);
-        cart = await CartService.GetOrCreateCartAsync("demo-session");
+        try
+        {
+            await CartService.RemoveItemAsync(id);
+            var sessionId = await CartSession.GetOrCreateSessionIdAsync();
+            cart = await CartService.GetOrCreateCartAsync(sessionId);
+            Snackbar.Add("Item removed from cart", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            Snackbar.Add("Failed to remove item", Severity.Error);
+        }
+    }
+
+    private async Task UpdateQuantity(int cartItemId, int quantity)
+    {
+        try
+        {
+            await CartService.UpdateItemQuantityAsync(cartItemId, quantity);
+            var sessionId = await CartSession.GetOrCreateSessionIdAsync();
+            cart = await CartService.GetOrCreateCartAsync(sessionId);
+            Snackbar.Add("Cart updated", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            Snackbar.Add("Failed to update cart", Severity.Error);
+        }
     }
 
     private void RedirectToLogin()
     {
         var returnUrl = "/checkout";
         Navigation.NavigateTo($"/account/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
+    }
+
+    private void GoToCheckout()
+    {
+        Navigation.NavigateTo("/checkout");
     }
 
     [CascadingParameter]

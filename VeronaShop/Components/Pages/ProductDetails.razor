@@ -23,7 +23,7 @@ else
         <img src="@(string.IsNullOrEmpty(product.ImageUrl) ? "images/placeholder.svg" : product.ImageUrl)" alt="@product.Name" style="max-width:300px;height:auto;object-fit:cover" />
         <h2>@product.Name</h2>
         <p>@product.Description</p>
-        <p>Price: @product.Price.ToString("C")</p>
+        <p>Price: @string.Format(new System.Globalization.CultureInfo("en-LY"), "{0:C}", product.Price)</p>
         <p>Stock: @product.StockQuantity</p>
         <a href="/shop">Back to shop</a>
     </div>

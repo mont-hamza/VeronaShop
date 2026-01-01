@@ -2,10 +2,16 @@
 @attribute [Authorize]
 
 @using Microsoft.EntityFrameworkCore
+@using VeronaShop.Services
+@using Microsoft.Extensions.DependencyInjection
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject VeronaShop.Services.CartService CartService
 @inject VeronaShop.Services.IEmailSender EmailSender
 @inject NavigationManager NavigationManager
+@inject VeronaShop.Services.CartSessionService CartSession
+@inject Microsoft.AspNetCore.Identity.UserManager<VeronaShop.Data.Entites.ApplicationUser> UserManager
+@inject ISnackbar Snackbar
+@inject VeronaShop.Services.IBackgroundTaskQueue TaskQueue
 @using System.Linq
 @using VeronaShop.Data
 @rendermode InteractiveServer
@@ -14,51 +20,126 @@
 
 @if (cart == null)
 {
-    <p>Loading cart...</p>
+    <MudProgressCircular Indeterminate="true" />
 }
 else if (!cart.Items.Any())
 {
-    <p>Your cart is empty.</p>
+    <MudPaper Class="pa-4">Your cart is empty.</MudPaper>
 }
 else
 {
-    <p>Review your order:</p>
-    <EditForm OnValidSubmit="PlaceOrder" FormName="CheckoutForm">
-        <ul>
-            @foreach (var it in cart.Items)
-            {
-                <li>@it.Product.Name x @it.Quantity - @it.UnitPrice</li>
-            }
-        </ul>
-
-        <MudButton Type="Submit" Variant="Variant.Filled" Color="Color.Primary">Place order</MudButton>
-    </EditForm>
+    <MudCard>
+        <MudCardContent>
+            <div>
+                @foreach (var it in cart.Items)
+                {
+                    <div class="d-flex justify-space-between mb-2" style="width:100%">
+                        <div>@it.Product.Name x @it.Quantity</div>
+                        <div>@(it.UnitPrice * it.Quantity).ToString("C")</div>
+                    </div>
+                }
+            </div>
+            <div class="d-flex justify-space-between mt-4">
+                <div>Subtotal</div>
+                <div>@cart.Items.Sum(i => i.UnitPrice * i.Quantity).ToString("C")</div>
+            </div>
+            <div class="d-flex justify-space-between">
+                <div>Shipping</div>
+                <div>@(0m).ToString("C")</div>
+            </div>
+            <hr />
+            <div class="d-flex justify-space-between font-weight-bold">
+                <div>Total</div>
+                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity)).ToString("C")</div>
+            </div>
+        </MudCardContent>
+        <MudCardActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PlaceOrder">Place order</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="BackToCart">Back to cart</MudButton>
+        </MudCardActions>
+    </MudCard>
 }
 
 @code {
     VeronaShop.Data.Entites.Cart cart;
+    [CascadingParameter]
+    private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> authenticationStateTask { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        cart = await CartService.GetOrCreateCartAsync("demo-session");
+        var sessionId = await CartSession.GetOrCreateSessionIdAsync();
+        cart = await CartService.GetOrCreateCartAsync(sessionId);
     }
 
     private async Task PlaceOrder()
     {
-        // create order
-        var order = new VeronaShop.Data.Entites.Orders
-        {
-            OrderNumber = $"ORD-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
-            OrderDate = DateTimeOffset.UtcNow.DateTime,
-            CustomerId = cart.CustomerId ?? 0,
-            TotalAmount = cart.Items.Sum(i => i.UnitPrice * i.Quantity),
-            ShippingCost = 0,
-            IsPaid = false,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        // Determine customer to associate with order
+        var authState = await authenticationStateTask;
+        var user = authState?.User?.Identity?.IsAuthenticated == true ? await UserManager.GetUserAsync(authState.User) : null;
 
         using (var db = DbFactory.CreateDbContext())
         {
+            // Ensure we have a Customer record for this order
+            VeronaShop.Data.Entites.Customer customer = null;
+            if (cart.CustomerId.HasValue)
+            {
+                customer = await db.Customers.FindAsync(cart.CustomerId.Value);
+            }
+
+            if (customer == null && user != null)
+            {
+                customer = await db.Customers.FirstOrDefaultAsync(c => c.IdentityUserId == user.Id);
+                if (customer == null)
+                {
+                    customer = new VeronaShop.Data.Entites.Customer
+                    {
+                        Name = user.DisplayName ?? user.UserName ?? "Customer",
+                        Email = user.Email ?? string.Empty,
+                        Phone = string.Empty,
+                        Address = string.Empty,
+                        City = string.Empty,
+                        Country = string.Empty,
+                        Region = string.Empty,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        Status = VeronaShop.Data.Entites.CustomerStatus.Active,
+                        IdentityUserId = user.Id
+                    };
+                    db.Customers.Add(customer);
+                    await db.SaveChangesAsync();
+                }
+            }
+
+            if (customer == null)
+            {
+                // create a guest customer record so foreign key constraint is satisfied
+                customer = new VeronaShop.Data.Entites.Customer
+                {
+                    Name = "Guest",
+                    Email = $"guest-{Guid.NewGuid()}@local",
+                    Phone = string.Empty,
+                    Address = string.Empty,
+                    City = string.Empty,
+                    Country = string.Empty,
+                    Region = string.Empty,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    Status = 0
+                };
+                db.Customers.Add(customer);
+                await db.SaveChangesAsync();
+            }
+
+            // create order associated with the customer
+            var order = new VeronaShop.Data.Entites.Orders
+            {
+                OrderNumber = $"ORD-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
+                OrderDate = DateTimeOffset.UtcNow,
+                CustomerId = customer.Id,
+                TotalAmount = cart.Items.Sum(i => i.UnitPrice * i.Quantity),
+                ShippingCost = 0,
+                IsPaid = false,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+
             db.Orders.Add(order);
             await db.SaveChangesAsync();
 
@@ -82,7 +163,7 @@ else
                 OrderId = order.Id,
                 IssuedAt = DateTimeOffset.UtcNow,
                 Amount = order.TotalAmount,
-                Email = cart.Customer?.Email ?? "customer@local",
+                Email = customer.Email ?? "customer@local",
                 Notes = "Invoice for your order"
             };
 
@@ -92,12 +173,86 @@ else
             // remove cart items using same short-lived context
             var cartItems = db.CartItems.Where(ci => ci.CartId == cart.Id).ToList();
             db.CartItems.RemoveRange(cartItems);
-            db.Carts.Remove(db.Carts.Find(cart.Id));
+            var storedCart = db.Carts.Find(cart.Id);
+            if (storedCart != null) db.Carts.Remove(storedCart);
             await db.SaveChangesAsync();
+
+            // send email (outside DB context)
+            try
+            {
+                await EmailSender.SendEmailAsync(customer.Email ?? "customer@local", "Your invoice", $"Invoice for order {order.OrderNumber}");
+            }
+            catch { }
+
+            // Enqueue admin notification work item
+            try
+            {
+                var orderNumber = order.OrderNumber;
+                var customerName = customer.Name;
+                var customerId = customer.Id;
+                var total = order.TotalAmount;
+                var placed = order.OrderDate;
+
+                await TaskQueue.QueueBackgroundWorkItem(async (services, ct) =>
+                {
+                    try
+                    {
+                        using var scope = services.CreateScope();
+                        var scopedUserMgr = scope.ServiceProvider.GetService<Microsoft.AspNetCore.Identity.UserManager<VeronaShop.Data.Entites.ApplicationUser>>();
+                        var scopedEmail = scope.ServiceProvider.GetService<IEmailSender>();
+                        var dbFactory = scope.ServiceProvider.GetService<Microsoft.EntityFrameworkCore.IDbContextFactory<VeronaShop.Data.ApplicationDbContext>>();
+                        if (scopedUserMgr == null || scopedEmail == null || dbFactory == null) return;
+
+                        using var db = dbFactory.CreateDbContext();
+                        var admins = await scopedUserMgr.GetUsersInRoleAsync("Admin");
+                        foreach (var admin in admins)
+                        {
+                            if (string.IsNullOrEmpty(admin?.Email)) continue;
+
+                            var notif = new VeronaShop.Data.Entites.Notification
+                            {
+                                OrderNumber = orderNumber,
+                                RecipientEmail = admin.Email,
+                                Status = VeronaShop.Data.Entites.NotificationStatus.Pending,
+                                CreatedAt = DateTimeOffset.UtcNow
+                            };
+                            db.Notifications.Add(notif);
+                            await db.SaveChangesAsync();
+
+                            try
+                            {
+                                var adminBody = $"A new order has been placed:\n\nOrder: {orderNumber}\nCustomer: {customerName} (Id={customerId})\nTotal: {total:C}\nPlaced: {placed:u}\n";
+                                await scopedEmail.SendEmailAsync(admin.Email, $"New order {orderNumber}", adminBody);
+
+                                notif.Status = VeronaShop.Data.Entites.NotificationStatus.Sent;
+                                notif.AttemptedAt = DateTimeOffset.UtcNow;
+                                notif.ErrorMessage = null;
+                                db.Notifications.Update(notif);
+                                await db.SaveChangesAsync();
+                            }
+                            catch (Exception ex)
+                            {
+                                notif.Status = VeronaShop.Data.Entites.NotificationStatus.Failed;
+                                notif.AttemptedAt = DateTimeOffset.UtcNow;
+                                notif.ErrorMessage = ex.Message;
+                                db.Notifications.Update(notif);
+                                await db.SaveChangesAsync();
+                            }
+                        }
+                    }
+                    catch { }
+                });
+            }
+            catch { }
+
+            Snackbar.Add($"Order {order.OrderNumber} placed", Severity.Success);
         }
-        // send email (outside DB context)
-        await EmailSender.SendEmailAsync(order.Customer?.Email ?? cart.Customer?.Email ?? "customer@local", "Your invoice", $"Invoice for order {order.OrderNumber}");
 
         NavigationManager.NavigateTo("/");
+    }
+
+    private void BackToCart()
+    {
+        NavigationManager.NavigateTo("/cart");
     }
 }
