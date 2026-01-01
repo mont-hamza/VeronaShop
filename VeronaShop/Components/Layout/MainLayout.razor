@@ -13,7 +13,7 @@
         <MudText Typo="Typo.h5" Class="ml-3">VeronaShop</MudText>
         <MudSpacer />
         <MudIconButton Icon="@(DarkLightModeButtonIcon)" Color="Color.Inherit" OnClick="@DarkModeToggle" />
-        <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" Edge="Edge.End" OnClick="@( () => Navigation.NavigateTo("/cart") )">
+        <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" Edge="Edge.End" OnClick="GoToCart">
             <span class="mud-badge mud-badge-dot" style="position:absolute;right:6px;top:6px;background-color:var(--mud-palette-error);color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">@cartCount</span>
         </MudIconButton>
         <AuthorizeView>
@@ -99,6 +99,11 @@
     private void DarkModeToggle()
     {
         _isDarkMode = !_isDarkMode;
+    }
+
+    private void GoToCart()
+    {
+        Navigation.NavigateTo("/cart");
     }
 
     private readonly PaletteLight _lightPalette = new()
