@@ -1,6 +1,7 @@
 @page "/admin/products"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
 @using MudBlazor
 @using VeronaShop.Data
 @using VeronaShop.Data.Entites
@@ -11,7 +12,7 @@
     <div class="d-flex justify-space-between align-center">
         <h3>Manage Products</h3>
         <MudTextField Placeholder="Search..." @bind-Value="search" Adornment="Adornment.Start" AdornmentIcon="Icons.Material.Filled.Search" Class="mr-2" />
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNew">Add product</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNew" Class="ml-2">Add product</MudButton>
     </div>
 
     @if (!string.IsNullOrEmpty(message))
@@ -28,14 +29,26 @@
 
                 <MudTextField @bind-Value="editingProduct.Name" Label="Name" Required="true" />
                 <MudTextField @bind-Value="editingProduct.SKU" Label="SKU" />
-                <MudTextField @bind-Value="editingProduct.ImageUrl" Label="Image URL" />
+                <div class="mb-2">
+                    <label class="mud-input-label">Product image</label>
+                    <div class="d-flex gap-2 align-center">
+                        <InputFile OnChange="OnEditInputFileChange" />
+                        <MudText Typo="Typo.caption">Pick a photo from your device</MudText>
+                    </div>
+                    @if (!string.IsNullOrEmpty(editingPreviewUrl))
+                    {
+                        <div class="mt-2">
+                            <img src="@editingPreviewUrl" style="max-width:160px;max-height:160px;object-fit:contain;border:1px solid #e0e0e0;padding:6px" />
+                        </div>
+                    }
+                </div>
                 <MudTextField @bind-Value="editingProduct.Price" Label="Price" InputType="InputType.Number" Required="true" />
                 <MudTextField @bind-Value="editingProduct.DiscountPrice" Label="Discount Price" InputType="InputType.Number" />
                 <MudTextField @bind-Value="editingProduct.StockQuantity" Label="Stock Quantity" InputType="InputType.Number" />
                 <MudCheckBox T="bool" @bind-Checked="editingProduct.IsPublished">Published</MudCheckBox>
 
                 <div class="mt-2">
-                    <MudButton Type="Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
                     <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="@(e => CancelEdit())">Cancel</MudButton>
                 </div>
             </EditForm>
@@ -55,7 +68,7 @@
         <RowTemplate>
             <MudTd DataLabel="Id">@context.Id</MudTd>
             <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Price">@context.Price.ToString("C")</MudTd>
+                <MudTd DataLabel="Price">@string.Format(new System.Globalization.CultureInfo("en-LY"), "{0:C}", context.Price)</MudTd>
             <MudTd DataLabel="Stock">@context.StockQuantity</MudTd>
             <MudTd DataLabel="Category">@context.Category?.Name</MudTd>
             <MudTd DataLabel="Supplier">@context.Supplier?.CompanyName</MudTd>
@@ -91,8 +104,11 @@
     private Product editingProduct;
     private Product productToDelete;
     private string message;
+    private IBrowserFile editingFile;
+    private string editingPreviewUrl;
 
     [Inject] private IDbContextFactory<ApplicationDbContext> DbFactory { get; set; }
+    [Inject] private ILogger<Products> Logger { get; set; }
 
     [Inject] IDialogService DialogService { get; set; }
     [Inject] ISnackbar Snackbar { get; set; }
@@ -135,7 +151,9 @@
         editingProduct = new Product
         {
             Name = string.Empty,
+            SKU = string.Empty,
             ImageUrl = string.Empty,
+            Description = string.Empty,
             Price = 0m,
             CreatedAt = DateTimeOffset.UtcNow,
             IsPublished = true
@@ -167,44 +185,106 @@
         editingProduct = null;
     }
 
+    private async Task OnEditInputFileChange(InputFileChangeEventArgs e)
+    {
+        editingFile = e.File;
+        // validate mime
+        if (!editingFile.ContentType.StartsWith("image/"))
+        {
+            Snackbar.Add("Only image files are allowed", Severity.Error);
+            return;
+        }
+        var buffer = new byte[editingFile.Size];
+        await editingFile.OpenReadStream(10 * 1024 * 1024).ReadAsync(buffer);
+        editingPreviewUrl = $"data:{editingFile.ContentType};base64,{Convert.ToBase64String(buffer)}";
+        editingProduct.ImageUrl = editingPreviewUrl;
+    }
+
     private async Task SaveProduct()
     {
-        if (editingProduct.Id == 0)
+        // perform add or update in a single DbContext and ensure required fields are not null
+        editingProduct.Name ??= string.Empty;
+        editingProduct.SKU ??= string.Empty;
+        editingProduct.Description ??= string.Empty;
+        editingProduct.ImageUrl ??= string.Empty;
+
+        using var db = DbFactory.CreateDbContext();
+            string oldImage = string.Empty;
+            if (editingProduct.Id == 0)
         {
             editingProduct.CreatedAt = DateTimeOffset.UtcNow;
-            using var db = DbFactory.CreateDbContext();
             db.Products.Add(editingProduct);
-            message = "Product created.";
         }
         else
         {
-            using var db = DbFactory.CreateDbContext();
             var existing = await db.Products.FindAsync(editingProduct.Id);
             if (existing != null)
             {
-                existing.Name = editingProduct.Name;
-                existing.SKU = editingProduct.SKU;
-                existing.Description = editingProduct.Description;
+                    oldImage = existing.ImageUrl ?? string.Empty;
+                    existing.Name = editingProduct.Name ?? string.Empty;
+                existing.SKU = editingProduct.SKU ?? string.Empty;
+                existing.Description = editingProduct.Description ?? string.Empty;
                 existing.Price = editingProduct.Price;
                 existing.DiscountPrice = editingProduct.DiscountPrice;
                 existing.StockQuantity = editingProduct.StockQuantity;
                 existing.IsPublished = editingProduct.IsPublished;
-                existing.ImageUrl = editingProduct.ImageUrl;
+                existing.ImageUrl = editingProduct.ImageUrl ?? string.Empty;
                 existing.CategoryId = editingProduct.CategoryId;
                 existing.SupplierId = editingProduct.SupplierId;
                 existing.UpdatedAt = DateTimeOffset.UtcNow;
-                message = "Product updated.";
+                // message assigned after successful save
             }
         }
-
-        using (var db = DbFactory.CreateDbContext())
+        try
         {
-            if (editingProduct.Id == 0)
-                db.Products.Add(editingProduct);
+            // if an image file was selected and preview is a data URL, persist the file to disk
+            if (editingFile != null && editingProduct.ImageUrl != null && editingProduct.ImageUrl.StartsWith("data:"))
+            {
+                // save the image file to wwwroot/uploads/products via ProductDialog logic
+                var uploads = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "products");
+                Directory.CreateDirectory(uploads);
+                var ext = Path.GetExtension(editingFile.Name);
+                var fileName = Guid.NewGuid().ToString() + ext;
+                var fullPath = Path.Combine(uploads, fileName);
+                using var stream = editingFile.OpenReadStream(10 * 1024 * 1024);
+                // simple copy; no server resize here for inline editor
+                using var fs = File.Create(fullPath);
+                await stream.CopyToAsync(fs);
+                editingProduct.ImageUrl = $"/uploads/products/{fileName}";
+                // update product image url in DB
+                if (editingProduct.Id != 0)
+                {
+                    var existing = await db.Products.FindAsync(editingProduct.Id);
+                    if (existing != null)
+                    {
+                        existing.ImageUrl = editingProduct.ImageUrl;
+                        // cleanup old image
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(oldImage) && oldImage.StartsWith("/uploads/products/") && oldImage != editingProduct.ImageUrl)
+                            {
+                                var physicalOld = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", oldImage.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                                if (File.Exists(physicalOld)) File.Delete(physicalOld);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+
             await db.SaveChangesAsync();
+            // success
+            editingProduct = null;
+            await LoadProducts();
+            message = editingProduct == null ? "Product saved." : "Product saved.";
+            Snackbar.Add(message, Severity.Success);
         }
-        editingProduct = null;
-        await LoadProducts();
+        catch (Exception ex)
+        {
+            message = "Failed to save product.";
+            try { Logger.LogError(ex, "SaveProduct failed"); } catch { }
+            Snackbar.Add($"Failed to save product: {ex.Message}", Severity.Error);
+        }
     }
 
     private void PromptDelete(Product p)

@@ -2,15 +2,19 @@
 @using VeronaShop.Data.Entites
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
+@using MudBlazor
 @inject UserManager<ApplicationUser> UserManager
 @inject RoleManager<IdentityRole<int>> RoleManager
-@using MudBlazor
+@inject ISnackbar Snackbar
+@inject ILogger<Users> Logger
+@inject IDbContextFactory<VeronaShop.Data.ApplicationDbContext> DbFactory
+@attribute [Authorize(Roles = "Admin")]
 @rendermode InteractiveServer
 
 <MudPaper Class="pa-4">
     <div class="d-flex justify-space-between align-center">
         <MudText Typo="Typo.h5">Users</MudText>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@LoadUsers">Refresh</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadUsers">Refresh</MudButton>
     </div>
 
     <MudTable Items="users" Dense="true" Hover="true" Class="mt-3">
@@ -36,13 +40,18 @@
     {
         <MudPaper Class="pa-3 mt-3">
             <MudText Typo="Typo.h6">Edit Roles for @editingUser.UserName</MudText>
-            @foreach (var r in allRoles)
-            {
-                <MudCheckBox T="bool" @bind-Checked="roleSelections[r]">@r</MudCheckBox>
-            }
+            <div>
+                @foreach (var role in roleList)
+                {
+                    <div class="d-flex align-center mb-2">
+                        <MudCheckBox T="bool" @bind-Checked="role.Selected" />
+                        <div class="ml-2">@role.Name</div>
+                    </div>
+                }
+            </div>
             <div class="mt-2">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@SaveRoles">Save</MudButton>
-                <MudButton Variant="Variant.Text" OnClick="@CancelEdit">Cancel</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveRoles">Save</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="CancelEdit">Cancel</MudButton>
             </div>
         </MudPaper>
     }
@@ -52,8 +61,8 @@
     private class SimpleUser { public int Id; public string UserName; public string Email; public string Roles; }
     private List<SimpleUser> users = new();
     private ApplicationUser editingUser;
-    private List<string> allRoles = new();
-    private Dictionary<string, bool> roleSelections = new();
+    private class RoleEntry { public string Name { get; set; } public bool Selected { get; set; } }
+    private List<RoleEntry> roleList = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -63,7 +72,7 @@
     private async Task LoadUsers()
     {
         users.Clear();
-        var list = UserManager.Users.ToList();
+        var list = await UserManager.Users.ToListAsync();
         foreach (var u in list)
         {
             var roles = await UserManager.GetRolesAsync(u);
@@ -74,23 +83,64 @@
     private async Task EditRoles(int userId)
     {
         editingUser = await UserManager.FindByIdAsync(userId.ToString());
-        allRoles = RoleManager.Roles.Select(r => r.Name).ToList();
-        roleSelections = new Dictionary<string, bool>();
-        foreach (var r in allRoles)
+        var roles = await RoleManager.Roles.Select(r => r.Name).ToListAsync();
+        roleList = new List<RoleEntry>();
+        foreach (var r in roles)
         {
-            roleSelections[r] = await UserManager.IsInRoleAsync(editingUser, r);
+            var inRole = await UserManager.IsInRoleAsync(editingUser, r);
+            roleList.Add(new RoleEntry { Name = r, Selected = inRole });
         }
+        StateHasChanged();
     }
 
     private async Task SaveRoles()
     {
-        var current = await UserManager.GetRolesAsync(editingUser);
-        var toAdd = roleSelections.Where(kv => kv.Value && !current.Contains(kv.Key)).Select(kv => kv.Key).ToArray();
-        var toRemove = current.Where(r => !roleSelections[r]).ToArray();
-        if (toAdd.Any()) await UserManager.AddToRolesAsync(editingUser, toAdd);
-        if (toRemove.Any()) await UserManager.RemoveFromRolesAsync(editingUser, toRemove);
-        editingUser = null;
-        await LoadUsers();
+        if (editingUser == null) return;
+
+        try
+        {
+            var selectedRoles = roleList.Where(x => x.Selected).Select(x => x.Name).ToArray();
+
+            using var db = DbFactory.CreateDbContext();
+
+            // Load role records
+            var roles = await db.Roles.Where(r => selectedRoles.Contains(r.Name)).ToListAsync();
+
+            // Directly update AspNetUserRoles: remove existing then add selected
+            var userRoles = db.Set<Microsoft.AspNetCore.Identity.IdentityUserRole<int>>();
+            var existing = await userRoles.Where(ur => ur.UserId == editingUser.Id).ToListAsync();
+            if (existing.Any())
+                userRoles.RemoveRange(existing);
+
+            foreach (var role in roles)
+            {
+                userRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<int>
+                {
+                    UserId = editingUser.Id,
+                    RoleId = role.Id
+                });
+            }
+
+            await db.SaveChangesAsync();
+
+            // log current roles from DB
+            try
+            {
+                var refreshed = await UserManager.FindByIdAsync(editingUser.Id.ToString());
+                var rolesNow = await UserManager.GetRolesAsync(refreshed);
+                Logger.LogInformation("Roles for {User} after DB update: {Roles}", editingUser.UserName, string.Join(',', rolesNow));
+            }
+            catch { }
+
+            Snackbar.Add("Roles updated", Severity.Success);
+            editingUser = null;
+            await LoadUsers();
+        }
+        catch (Exception ex)
+        {
+            try { Logger.LogError(ex, "SaveRoles failed"); } catch { }
+            Snackbar.Add("Failed to save roles: " + ex.Message, Severity.Error);
+        }
     }
 
     private void CancelEdit()

@@ -11,6 +11,7 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
+@inject RoleManager<IdentityRole<int>> RoleManager
 @using Microsoft.Extensions.Logging
 @inject ILogger<Register> Logger
 @using MudBlazor
@@ -46,6 +47,10 @@
             </MudItem>
 
             <MudItem xs="12">
+                <MudTextField @bind-Value="registerModel.Phone" Label="Phone" />
+            </MudItem>
+
+            <MudItem xs="12">
                 <MudTextField @bind-Value="registerModel.Password" Label="Password" InputType="InputType.Password" Required="true" />
             </MudItem>
 
@@ -67,7 +72,7 @@
 
             <MudItem xs="12" Class="d-flex justify-end mt-4">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit">Create account</MudButton>
-                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Class="ml-2" OnClick="@(async () => await DebugRegister())">Debug register</MudButton>
+                
             </MudItem>
         </MudGrid>
 
@@ -95,23 +100,10 @@
         public string Region { get; set; }
         public string Country { get; set; }
         public DateTime? DateOfBirth { get; set; }
+        public string Phone { get; set; }
     }
 
-    private async Task DebugRegister()
-    {
-        try
-        {
-            try { Logger.LogInformation("DebugRegister invoked"); } catch { }
-            // call the handler directly (bypasses EditForm validation)
-            await HandleRegister();
-            Snackbar.Add("DebugRegister invoked", Severity.Info);
-        }
-        catch (Exception ex)
-        {
-            try { Logger.LogError(ex, "DebugRegister failed"); } catch { }
-            Snackbar.Add("Debug register failed: " + ex.Message, Severity.Error);
-        }
-    }
+    
 
     private string errorMessage;
     private string statusMessage;
@@ -125,6 +117,7 @@
         {
             UserName = registerModel.UserName,
             Email = registerModel.Email,
+                PhoneNumber = registerModel.Phone,
             DisplayName = registerModel.DisplayName ?? registerModel.UserName,
             FirstName = registerModel.FirstName,
             LastName = registerModel.LastName,
@@ -146,7 +139,7 @@
             {
                 Name = registerModel.DisplayName ?? registerModel.UserName,
                 Email = registerModel.Email,
-                Phone = string.Empty,
+                Phone = registerModel.Phone ?? string.Empty,
                 Address = registerModel.Address ?? string.Empty,
                 City = registerModel.City ?? string.Empty,
                 Region = registerModel.Region ?? string.Empty,
@@ -165,12 +158,20 @@
                 db.Customers.Update(customer);
                 await db.SaveChangesAsync();
             }
-            // assign default role
+            // assign default role (ensure role exists)
             try
             {
-                await UserManager.AddToRoleAsync(user, "Customer");
+                var roleName = "Customer";
+                if (!await RoleManager.RoleExistsAsync(roleName))
+                {
+                    await RoleManager.CreateAsync(new IdentityRole<int>(roleName));
+                }
+                await UserManager.AddToRoleAsync(user, roleName);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                try { Logger.LogWarning(ex, "Failed to assign Customer role to {User}", user.UserName); } catch { }
+            }
             statusMessage = "Account created — signing in...";
             StateHasChanged();
             Snackbar.Add("Account created — signing in...", Severity.Info);

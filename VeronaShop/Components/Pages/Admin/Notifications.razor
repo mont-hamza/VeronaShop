@@ -1,0 +1,53 @@
+@page "/admin/notifications"
+@using VeronaShop.Data.Entites
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.EntityFrameworkCore.Infrastructure
+@inject IDbContextFactory<VeronaShop.Data.ApplicationDbContext> DbFactory
+@using MudBlazor
+@using System.Linq
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+
+<h3>Notification delivery status</h3>
+
+@if (notifications == null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!notifications.Any())
+{
+    <MudPaper Class="pa-4">No notifications yet.</MudPaper>
+}
+else
+{
+    <MudTable Items="notifications" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Id</MudTh>
+            <MudTh>Order</MudTh>
+            <MudTh>Recipient</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Attempted</MudTh>
+            <MudTh>Error</MudTh>
+            <MudTh>Created</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Id</MudTd>
+            <MudTd>@context.OrderNumber</MudTd>
+            <MudTd>@context.RecipientEmail</MudTd>
+            <MudTd>@context.Status</MudTd>
+            <MudTd>@context.AttemptedAt</MudTd>
+            <MudTd>@context.ErrorMessage</MudTd>
+            <MudTd>@context.CreatedAt</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<Notification> notifications;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var db = DbFactory.CreateDbContext();
+        notifications = await db.Notifications.OrderByDescending(n => n.CreatedAt).Take(200).ToListAsync();
+    }
+}
