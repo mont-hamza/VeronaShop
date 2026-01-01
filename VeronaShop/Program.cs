@@ -9,6 +9,8 @@ using VeronaShop.Data.Entites;
 using VeronaShop.Services;
 using Microsoft.AspNetCore.Identity;
 using VeronaShop.Data;
+using System.Globalization;
+using Microsoft.AspNetCore.Localization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,12 +56,22 @@ builder.Services.AddScoped<IEmailSender, DevEmailSender>();
 builder.Services.AddScoped<CartService>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<CartSessionService>();
+// Background queue for long-running or non-critical tasks (email notifications)
+builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
+builder.Services.AddHostedService<QueuedHostedService>();
 // MudBlazor snackbar provider is registered by AddMudServices(); no manual registration required here.
 
 // Optional: register SmtpEmailSender with real settings in production
 // builder.Services.AddSingleton<IEmailSender>(new SmtpEmailSender("smtp.example.com", 587, "user@example.com", "password"));
 
 var app = builder.Build();
+
+// Configure site-wide culture to use LYD for currency formatting
+var culture = new CultureInfo("en-LY");
+// Ensure currency symbol is LYD
+culture.NumberFormat.CurrencySymbol = "LYD";
+CultureInfo.DefaultThreadCurrentCulture = culture;
+CultureInfo.DefaultThreadCurrentUICulture = culture;
 
 // Drop and recreate database from migrations, then seed roles and initial admin (only in Development)
 using (var scope = app.Services.CreateScope())
@@ -71,13 +83,13 @@ using (var scope = app.Services.CreateScope())
 
     if (env.IsDevelopment())
     {
-        // Ensure DB is recreated from migrations (destructive)
-        db.Database.EnsureDeleted();
+        // In development, apply migrations but do NOT drop the database so created data persists across runs.
+        // Previously the DB was deleted on every start which removed user/product data.
         db.Database.Migrate();
     }
     else
     {
-        // In non-development, just apply pending migrations (non-destructive)
+        // In non-development, apply pending migrations (non-destructive)
         db.Database.Migrate();
     }
 
@@ -247,5 +259,33 @@ app.MapPost("/auth/login", async (HttpContext http, UserManager<ApplicationUser>
         return Results.Redirect("/account/login?error=error");
     }
 });
+
+// Development-only debug endpoint to set customer phone directly and return current value
+if (app.Environment.IsDevelopment())
+{
+    app.MapPost("/debug/set-customer-phone", async (HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory, ILogger<Program> logger) =>
+    {
+        try
+        {
+            var doc = await http.Request.ReadFromJsonAsync<JsonElement>();
+            if (!doc.TryGetProperty("id", out var idElem) || !doc.TryGetProperty("phone", out var phoneElem))
+                return Results.BadRequest(new { error = "missing id or phone" });
+
+            var id = idElem.GetInt32();
+            var phone = phoneElem.GetString() ?? string.Empty;
+
+            using var db = dbFactory.CreateDbContext();
+            var rows = await db.Database.ExecuteSqlRawAsync("UPDATE Customers SET Phone = {0}, UpdatedAt = {1} WHERE Id = {2}", phone, DateTimeOffset.UtcNow, id);
+            var raw = await db.Customers.AsNoTracking().Where(c => c.Id == id).Select(c => c.Phone).FirstOrDefaultAsync();
+            logger.LogInformation("/debug/set-customer-phone id={Id} rows={Rows} rawPhone='{Phone}'", id, rows, raw);
+            return Results.Ok(new { rows, phone = raw });
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "debug set phone failed");
+            return Results.StatusCode(500);
+        }
+    });
+}
 
 app.Run();

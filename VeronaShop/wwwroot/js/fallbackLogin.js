@@ -1,6 +1,5 @@
 window.submitFallbackLogin = (user, password, returnUrl, sessionId) => {
     try {
-        console.log('submitFallbackLogin called', { user, returnUrl, sessionId });
         // Use fetch POST so we can wait for server to set cookie before navigating
         const fd = new FormData();
         fd.append('user', user || '');

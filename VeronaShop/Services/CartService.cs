@@ -18,6 +18,35 @@ namespace VeronaShop.Services
             _session = session;
         }
 
+        public async Task UpdateItemQuantityAsync(int cartItemId, int newQuantity)
+        {
+            using var db = _dbFactory.CreateDbContext();
+            var item = await db.CartItems.Include(ci => ci.Cart).FirstOrDefaultAsync(ci => ci.Id == cartItemId);
+            if (item == null) return;
+
+            if (newQuantity <= 0)
+            {
+                db.CartItems.Remove(item);
+            }
+            else
+            {
+                item.Quantity = newQuantity;
+            }
+
+            await db.SaveChangesAsync();
+
+            try
+            {
+                var sessionId = item.Cart?.SessionId;
+                if (!string.IsNullOrEmpty(sessionId))
+                {
+                    var count = await GetCartItemCountAsync(sessionId);
+                    CartCountChanged?.Invoke(count);
+                }
+            }
+            catch { }
+        }
+
         public async Task<Cart> GetOrCreateCartAsync(string sessionId = null, int? customerId = null)
         {
             if (string.IsNullOrEmpty(sessionId))
@@ -41,13 +70,13 @@ namespace VeronaShop.Services
                 db.Carts.Add(cart);
                 await db.SaveChangesAsync();
 
-            // notify listeners
-            try
-            {
-                var count = await GetCartItemCountAsync(cart.SessionId);
-                CartCountChanged?.Invoke(count);
-            }
-            catch { }
+                // notify listeners
+                try
+                {
+                    var count = await GetCartItemCountAsync(cart.SessionId);
+                    CartCountChanged?.Invoke(count);
+                }
+                catch { }
             }
 
             return cart;
@@ -78,6 +107,13 @@ namespace VeronaShop.Services
             }
 
             await db.SaveChangesAsync();
+            // Refresh cart item count and notify listeners
+            try
+            {
+                var count = await GetCartItemCountAsync(cart.SessionId);
+                CartCountChanged?.Invoke(count);
+            }
+            catch { }
         }
 
         public async Task RemoveItemAsync(int cartItemId)
@@ -105,46 +141,46 @@ namespace VeronaShop.Services
             await _mutex.WaitAsync();
             try
             {
-            using var db = _dbFactory.CreateDbContext();
-            var anonCart = await db.Carts.Include(c => c.Items).FirstOrDefaultAsync(c => c.SessionId == anonymousSessionId);
-            if (anonCart == null) return;
+                using var db = _dbFactory.CreateDbContext();
+                var anonCart = await db.Carts.Include(c => c.Items).FirstOrDefaultAsync(c => c.SessionId == anonymousSessionId);
+                if (anonCart == null) return;
 
-            // find or create user cart
-            var userCart = await db.Carts.Include(c => c.Items).FirstOrDefaultAsync(c => c.Customer != null && c.Customer.Email == user.Email || c.CustomerId != null && c.CustomerId == user.Id);
-            if (userCart == null)
-            {
-                userCart = new Cart
+                // find or create user cart
+                var userCart = await db.Carts.Include(c => c.Items).FirstOrDefaultAsync(c => (c.Customer != null && c.Customer.Email == user.Email) || (c.CustomerId != null && c.CustomerId == user.Id));
+                if (userCart == null)
                 {
-                    CustomerId = null,
-                    SessionId = $"user-{user.Id}",
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    Items = new List<CartItem>()
-                };
-                db.Carts.Add(userCart);
-            }
-
-            foreach (var item in anonCart.Items)
-            {
-                var exists = userCart.Items.FirstOrDefault(i => i.ProductId == item.ProductId);
-                if (exists != null)
-                {
-                    exists.Quantity += item.Quantity;
-                }
-                else
-                {
-                    userCart.Items.Add(new CartItem
+                    userCart = new Cart
                     {
-                        ProductId = item.ProductId,
-                        Quantity = item.Quantity,
-                        UnitPrice = item.UnitPrice
-                    });
+                        CustomerId = null,
+                        SessionId = $"user-{user.Id}",
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        Items = new List<CartItem>()
+                    };
+                    db.Carts.Add(userCart);
                 }
-            }
 
-            db.CartItems.RemoveRange(anonCart.Items);
-            db.Carts.Remove(anonCart);
+                foreach (var item in anonCart.Items)
+                {
+                    var exists = userCart.Items.FirstOrDefault(i => i.ProductId == item.ProductId);
+                    if (exists != null)
+                    {
+                        exists.Quantity += item.Quantity;
+                    }
+                    else
+                    {
+                        userCart.Items.Add(new CartItem
+                        {
+                            ProductId = item.ProductId,
+                            Quantity = item.Quantity,
+                            UnitPrice = item.UnitPrice
+                        });
+                    }
+                }
 
-            await db.SaveChangesAsync();
+                db.CartItems.RemoveRange(anonCart.Items);
+                db.Carts.Remove(anonCart);
+
+                await db.SaveChangesAsync();
 
                 try
                 {

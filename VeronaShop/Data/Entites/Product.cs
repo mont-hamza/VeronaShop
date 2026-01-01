@@ -2,18 +2,23 @@
 
 namespace VeronaShop.Data.Entites
 {
+    /// <summary>
+    /// Product catalog entry.
+    /// </summary>
     public class Product
     {
         [Key]
         public int Id { get; set; }
 
+        /// <summary>Product name.</summary>
         [Required, MaxLength(200)]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         [MaxLength(100)]
-        public string SKU { get; set; }
+        public string SKU { get; set; } = string.Empty;
 
-        public string Description { get; set; }
+        /// <summary>Product description (optional).</summary>
+        public string Description { get; set; } = string.Empty;
 
         [Required]
         [DataType(DataType.Currency)]
@@ -26,16 +31,20 @@ namespace VeronaShop.Data.Entites
 
         public bool IsPublished { get; set; } = true;
 
-        public string ImageUrl { get; set; }
+        // legacy single-image property (kept for compatibility)
+        public string ImageUrl { get; set; } = string.Empty;
+
+        // multiple images
+        public virtual ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
 
         // Relations
         public int? SupplierId { get; set; }
-        public Supplier Supplier { get; set; }
+        public Supplier? Supplier { get; set; }
 
         public int? CategoryId { get; set; }
-        public Category Category { get; set; }
+        public Category? Category { get; set; }
 
-        public virtual ICollection<OrderProduct> OrderProducts { get; set; }
+        public virtual ICollection<OrderProduct> OrderProducts { get; set; } = new List<OrderProduct>();
 
         // Audit
         public DateTimeOffset CreatedAt { get; set; }

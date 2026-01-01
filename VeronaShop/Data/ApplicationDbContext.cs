@@ -21,6 +21,8 @@ namespace VeronaShop.Data
         public DbSet<Invoice> Invoices { get; set; }
         public DbSet<Post> Posts { get; set; }
         public DbSet<Promotion> Promotions { get; set; }
+        public DbSet<ProductImage> ProductImages { get; set; }
+        public DbSet<Data.Entites.Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -33,7 +35,9 @@ namespace VeronaShop.Data
             modelBuilder.Entity<Orders>().Property(o => o.ShippingCost).HasColumnType("decimal(18,2)");
             modelBuilder.Entity<Product>().Property(p => p.Price).HasColumnType("decimal(18,2)");
             modelBuilder.Entity<Product>().Property(p => p.DiscountPrice).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ProductImage>().Property(pi => pi.Url).IsRequired();
             modelBuilder.Entity<Invoice>().Property(i => i.Amount).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<Data.Entites.Notification>().Property(n => n.RecipientEmail).HasMaxLength(256);
         }
     }
 }

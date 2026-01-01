@@ -4,24 +4,29 @@ namespace VeronaShop.Data.Entites
 {
     public enum OrderStatus { Pending = 0, Processing = 1, Shipped = 2, Delivered = 3, Cancelled = 4 }
 
+    /// <summary>
+    /// Represents a customer's order.
+    /// </summary>
     public class Orders
     {
         public Orders() { }
         public Orders(int id) { Id = id; }
 
+        /// <summary>Primary key.</summary>
         [Key]
         public int Id { get; set; }
 
+        /// <summary>Human-friendly order number.</summary>
         [Required, MaxLength(50)]
-        public string OrderNumber { get; set; }
+        public string OrderNumber { get; set; } = string.Empty;
 
         public DateTimeOffset OrderDate { get; set; }
 
         public int CustomerId { get; set; }
-        public Customer Customer { get; set; }
+        public Customer Customer { get; set; } = null!;
 
         // Order lines
-        public virtual ICollection<OrderProduct> OrderProducts { get; set; }
+        public virtual ICollection<OrderProduct> OrderProducts { get; set; } = new List<OrderProduct>();
 
         // Totals
         [DataType(DataType.Currency)]
