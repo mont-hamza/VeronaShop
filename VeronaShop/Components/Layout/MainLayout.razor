@@ -1,6 +1,12 @@
 ﻿@inherits LayoutComponentBase
 @using Microsoft.AspNetCore.Identity
 @using VeronaShop.Data.Entites
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Threading
+@using System.Threading.Tasks
+@using VeronaShop.Data
+@using Microsoft.AspNetCore.Components.Authorization
 
 <MudThemeProvider Theme="@_theme" IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
@@ -13,6 +19,20 @@
         <MudText Typo="Typo.h5" Class="ml-3">VeronaShop</MudText>
         <MudSpacer />
         <MudIconButton Icon="@(DarkLightModeButtonIcon)" Color="Color.Inherit" OnClick="@DarkModeToggle" />
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                @if (failedNotificationsCount > 0)
+                {
+                    <MudBadge Class="notification-badge" Content="@failedNotificationsCount.ToString()" Color="Color.Warning" MaxValue="99">
+                        <MudIconButton Icon="@(Icons.Material.Filled.Notifications)" Color="Color.Inherit" Title="Notifications" OnClick="OnNotificationsClicked" />
+                    </MudBadge>
+                }
+                else
+                {
+                    <MudIconButton Icon="@(Icons.Material.Filled.Notifications)" Color="Color.Inherit" Title="Notifications" OnClick="OnNotificationsClicked" />
+                }
+            </Authorized>
+        </AuthorizeView>
         <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" Edge="Edge.End" OnClick="GoToCart">
             <span class="mud-badge mud-badge-dot" style="position:absolute;right:6px;top:6px;background-color:var(--mud-palette-error);color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">@cartCount</span>
         </MudIconButton>
@@ -50,9 +70,16 @@
     private bool _isDarkMode = true;
     private MudTheme? _theme = null;
     private int cartCount = 0;
+    private int pendingOrdersCount = 0;
+    private int failedNotificationsCount = 0;
+    private HubConnection? _hubConnection;
     [Inject] private VeronaShop.Services.CartService CartService { get; set; }
     [Inject] private VeronaShop.Services.CartSessionService CartSession { get; set; }
     [Inject] private NavigationManager Navigation { get; set; }
+    [Inject] private IDbContextFactory<ApplicationDbContext> DbFactory { get; set; }
+    [Inject] private Microsoft.AspNetCore.Identity.UserManager<VeronaShop.Data.Entites.ApplicationUser> UserManager { get; set; }
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; }
+    private List<(int Id, string OrderNumber, string RecipientEmail, string Status, DateTimeOffset CreatedAt, bool IsViewedForMe)>? recentNotifications;
 
     protected override async Task OnInitializedAsync()
     {
@@ -64,12 +91,86 @@
             cartCount = await CartService.GetCartItemCountAsync(sessionId);
         }
         catch { }
+
+        // start SignalR connection for admin counts
+        try
+        {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/hubs/notifications"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On<int, int>("NotifyCounts", async (pending, totalViews) =>
+            {
+                try
+                {
+                    pendingOrdersCount = pending;
+                    // fetch per-admin unviewed count from server
+                        try
+                        {
+                            var raw = await _hubConnection.InvokeAsync<object>("GetUnviewedCount");
+                            failedNotificationsCount = raw == null ? totalViews : Convert.ToInt32(raw);
+                        }
+                        catch
+                        {
+                            // fallback to provided totalViews if per-admin call fails
+                            failedNotificationsCount = totalViews;
+                        }
+                }
+                catch { }
+                await InvokeAsync(StateHasChanged);
+            });
+
+            await _hubConnection.StartAsync();
+
+            // get initial counts: pending orders from DB and per-admin unviewed via hub
+            try
+            {
+                using var db = DbFactory.CreateDbContext();
+                pendingOrdersCount = await db.Orders.Where(o => o.Status == VeronaShop.Data.Entites.OrderStatus.Pending).CountAsync();
+            }
+            catch { }
+
+            try
+            {
+                if (_hubConnection != null)
+                {
+                    try
+                    {
+                        var rawInit = await _hubConnection.InvokeAsync<object>("GetUnviewedCount");
+                        failedNotificationsCount = rawInit == null ? 0 : Convert.ToInt32(rawInit);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+        catch { }
     }
 
     private void OnCartCountChanged(int count)
     {
         cartCount = count;
         InvokeAsync(StateHasChanged);
+    }
+
+    // MudMenu OpenChanged wrapper expects Action<bool> (non-async). Call async handler fire-and-forget.
+    private void OnMenuOpenChanged(bool open)
+    {
+        _ = HandleMenuOpenChangedAsync(open);
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            if (_hubConnection != null)
+            {
+                _hubConnection.StopAsync().GetAwaiter().GetResult();
+                _hubConnection.DisposeAsync().GetAwaiter().GetResult();
+            }
+        }
+        catch { }
     }
 
     protected override void OnInitialized()
@@ -104,6 +205,50 @@
     private void GoToCart()
     {
         Navigation.NavigateTo("/cart");
+    }
+
+    private async Task OnNotificationsClicked()
+    {
+        // optimistically clear badge for immediate feedback, then navigate
+        try
+        {
+            failedNotificationsCount = 0;
+            StateHasChanged();
+            Navigation.NavigateTo("/admin/notifications");
+        }
+        catch { }
+    }
+
+    private async Task HandleMenuOpenChangedAsync(bool open)
+    {
+        if (!open) return;
+        try
+        {
+            if (_hubConnection != null)
+            {
+                var raw = await _hubConnection.InvokeAsync<object>("MarkAllViewed");
+                failedNotificationsCount = raw == null ? 0 : Convert.ToInt32(raw);
+            }
+
+            var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            if (user?.Identity?.IsAuthenticated == true)
+            {
+                var appUser = await UserManager.GetUserAsync(user);
+                if (appUser != null)
+                {
+                    var adminId = appUser.Id;
+                    using var db = DbFactory.CreateDbContext();
+                    var views = new List<int>();
+                    if (await db.TableExistsAsync("NotificationViews"))
+                        views = await db.NotificationViews.Where(nv => nv.AdminId == adminId).Select(nv => nv.NotificationId).ToListAsync();
+                    var notes = await db.Notifications.OrderByDescending(n => n.CreatedAt).Take(20).ToListAsync();
+                    recentNotifications = notes.Select(n => (n.Id, n.OrderNumber, n.RecipientEmail, n.Status.ToString(), n.CreatedAt, views.Contains(n.Id))).ToList();
+                }
+            }
+        }
+        catch { }
+        await InvokeAsync(StateHasChanged);
     }
 
     private readonly PaletteLight _lightPalette = new()

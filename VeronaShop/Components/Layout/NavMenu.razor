@@ -1,6 +1,5 @@
 ﻿
 @using Microsoft.AspNetCore.Identity
-@using VeronaShop.Components.Shared
 @inject NavigationManager Navigation
 
 <MudNavMenu>
@@ -16,7 +15,6 @@
                 <MudNavLink Href="admin/products" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Inventory">Products</MudNavLink>
                 <MudNavLink Href="admin/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Receipt">Orders</MudNavLink>
                 <MudNavLink Href="admin/users" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Group">Users</MudNavLink>
-                <MudNavLink Href="admin/notifications" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Notifications">Notifications</MudNavLink>
             </MudNavGroup>
         </Authorized>
     </AuthorizeView>
@@ -28,6 +26,7 @@
                 <MudNavLink Href="/account/register" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AppRegistration">Register</MudNavLink>
             </NotAuthorized>
             <Authorized>
+                <MudNavLink Href="/account/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.List">My Orders</MudNavLink>
                 <MudNavLink Href="/account/profile" Icon="@Icons.Material.Filled.Person">Profile</MudNavLink>
                 <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Logout" OnClick="@LogoutAsync">Logout</MudButton>
             </Authorized>
