@@ -16,5 +16,6 @@ namespace VeronaShop.Data.Entites
         public DateTimeOffset? AttemptedAt { get; set; }
         public string? ErrorMessage { get; set; }
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+        // Removed global IsViewed. Per-admin views are stored in NotificationView entries.
     }
 }

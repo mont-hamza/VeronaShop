@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using VeronaShop.Data.Entites;
+using System.Data;
+using System.Threading.Tasks;
 
 namespace VeronaShop.Data
 {
@@ -23,6 +25,7 @@ namespace VeronaShop.Data
         public DbSet<Promotion> Promotions { get; set; }
         public DbSet<ProductImage> ProductImages { get; set; }
         public DbSet<Data.Entites.Notification> Notifications { get; set; }
+        public DbSet<Data.Entites.NotificationView> NotificationViews { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -38,6 +41,30 @@ namespace VeronaShop.Data
             modelBuilder.Entity<ProductImage>().Property(pi => pi.Url).IsRequired();
             modelBuilder.Entity<Invoice>().Property(i => i.Amount).HasColumnType("decimal(18,2)");
             modelBuilder.Entity<Data.Entites.Notification>().Property(n => n.RecipientEmail).HasMaxLength(256);
+            modelBuilder.Entity<Data.Entites.NotificationView>().HasIndex(nv => new { nv.NotificationId, nv.AdminId }).IsUnique(false);
+        }
+
+        public async Task<bool> TableExistsAsync(string tableName)
+        {
+            try
+            {
+                var conn = this.Database.GetDbConnection();
+                if (conn.State == ConnectionState.Closed)
+                    await conn.OpenAsync();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id WHERE t.name = @name AND s.name = 'dbo'";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@name";
+                p.Value = tableName;
+                cmd.Parameters.Add(p);
+                var res = await cmd.ExecuteScalarAsync();
+                if (res == null || res == DBNull.Value) return false;
+                return Convert.ToInt32(res) > 0;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

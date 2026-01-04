@@ -1,0 +1,68 @@
+/* Adjust notification badge position on app bar */
+.notification-badge .mud-badge-content {
+    transform: translate(6px, -6px) !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 5px !important;
+    font-size: 11px !important;
+    line-height: 18px !important;
+    border-radius: 9px !important;
+}
+
+.notifications-dropdown {
+  min-width: 320px;
+  max-width: 420px;
+}
+.notification-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.notification-item.unread {
+  background: rgba(126,111,255,0.04);
+}
+
+/* Order status timeline */
+.orders-list { display:flex; flex-direction:column; gap:16px; }
+.order-card { border:1px solid rgba(255,255,255,0.04); padding:16px; border-radius:8px; background: rgba(255,255,255,0.02); }
+.order-header { display:flex; gap:24px; justify-content:space-between; flex-wrap:wrap; }
+.order-status-steps .steps { display:flex; gap:12px; align-items:center; margin-top:12px; }
+.order-status-steps .step { display:flex; flex-direction:column; align-items:center; width:100px; }
+.order-status-steps .circle { width:32px; height:32px; border-radius:16px; display:flex; align-items:center; justify-content:center; background:#555; color:white; }
+.order-status-steps .step.completed .circle { background: #3dcb6c; }
+.order-status-steps .step.current .circle { background: #ffb545; }
+.order-status-steps .label { margin-top:6px; font-size:0.85rem; text-align:center; }
+
+/* Admin orders card styles */
+.order-card-elevated { border-radius:8px; box-shadow: 0 6px 18px rgba(0,0,0,0.18); transition: transform .15s ease-in-out; }
+.order-card-elevated:hover { transform: translateY(-4px); }
+.order-card-elevated .mud-chip { font-weight:600; }
+
+/* Animation when status updates */
+.order-status-flash {
+  animation: statusFlash 1.2s ease-in-out;
+}
+@keyframes statusFlash {
+  0% { box-shadow: 0 0 0px rgba(0,0,0,0); transform: scale(1); }
+  30% { box-shadow: 0 8px 20px rgba(0,0,0,0.18); transform: scale(1.02); }
+  60% { box-shadow: 0 6px 12px rgba(0,0,0,0.12); transform: scale(1.01); }
+  100% { box-shadow: 0 6px 18px rgba(0,0,0,0.18); transform: scale(1); }
+}
+
+/* Typography / spacing tweaks for admin */
+.admin-typography h3 { font-size:1.25rem; font-weight:600; }
+.admin-typography .mud-text { line-height:1.2; }
+
+/* Legend */
+.status-legend { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
+.status-legend .legend-item { display:flex; gap:8px; align-items:center; }
+.legend-chip { width:14px; height:14px; border-radius:4px; display:inline-block; }
+
+/* Bulk actions */
+.bulk-actions { display:flex; gap:8px; align-items:center; }
+
+/* Customer orders card */
+.customer-order-card { border-radius:8px; padding:8px; box-shadow: 0 6px 14px rgba(0,0,0,0.08); }
+.order-items-compact .muted { color: rgba(0,0,0,0.6); font-size:0.9rem; }
+.customer-order-card .mud-chip { font-weight:600; }
+
+.customer-order-card img { border-radius:6px; }

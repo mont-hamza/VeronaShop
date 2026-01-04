@@ -51,8 +51,21 @@ builder.Services.AddServerSideBlazor().AddCircuitOptions(options =>
     options.DetailedErrors = builder.Environment.IsDevelopment() || configured;
 });
 
+// SignalR hub for notifications
+builder.Services.AddSignalR();
+
 // App services
 builder.Services.AddScoped<IEmailSender, DevEmailSender>();
+// Configure SMTP email sender only if SMTP settings are provided; otherwise keep DevEmailSender
+var smtpHost = builder.Configuration["Smtp:Host"];
+if (!string.IsNullOrEmpty(smtpHost))
+{
+    var smtpPort = int.TryParse(builder.Configuration["Smtp:Port"], out var p) ? p : 587;
+    var smtpUser = builder.Configuration["Smtp:User"] ?? string.Empty;
+    var smtpPass = builder.Configuration["Smtp:Pass"] ?? string.Empty;
+    // Register concrete SmtpEmailSender as the IEmailSender implementation
+    builder.Services.AddSingleton<IEmailSender>(new SmtpEmailSender(smtpHost, smtpPort, smtpUser, smtpPass));
+}
 builder.Services.AddScoped<CartService>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<CartSessionService>();
@@ -92,6 +105,27 @@ using (var scope = app.Services.CreateScope())
         // In non-development, apply pending migrations (non-destructive)
         db.Database.Migrate();
     }
+
+    // Ensure Notifications table exists for runtime-written notification records (best-effort).
+    try
+    {
+        var ensureSql = @"IF NOT EXISTS (SELECT * FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id WHERE t.name = 'Notifications' AND s.name = 'dbo')
+BEGIN
+    CREATE TABLE [dbo].[Notifications](
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [OrderNumber] NVARCHAR(max) NOT NULL,
+        [RecipientEmail] NVARCHAR(256) NOT NULL,
+        [Status] INT NOT NULL,
+        [AttemptedAt] DATETIMEOFFSET NULL,
+        [ErrorMessage] NVARCHAR(max) NULL,
+        [CreatedAt] DATETIMEOFFSET NOT NULL
+    );
+END";
+
+        try { db.Database.ExecuteSqlRaw(ensureSql); } catch { }
+        // Notification views are tracked in NotificationViews table per admin; migrations should create that table.
+    }
+    catch { }
 
     var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
     var roleManager = services.GetRequiredService<RoleManager<IdentityRole<int>>>();
@@ -189,6 +223,9 @@ app.MapGet("/auth/logout", async (HttpContext http, SignInManager<ApplicationUse
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// SignalR hub mapping
+app.MapHub<VeronaShop.Services.NotificationHub>("/hubs/notifications");
 
 // POST endpoint to perform cookie sign-in from browser form (ensures Set-Cookie is sent to client)
 app.MapPost("/auth/login", async (HttpContext http, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, VeronaShop.Services.CartService cartService, ILogger<Program> logger) =>
