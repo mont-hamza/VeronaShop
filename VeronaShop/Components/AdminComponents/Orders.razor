@@ -1,0 +1,339 @@
+@page "/admin/orders"
+@using Microsoft.EntityFrameworkCore
+@using System.Linq
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@using MudBlazor
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject ISnackbar Snackbar
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+
+<h3>Manage Orders</h3>
+
+<MudPaper Class="pa-4">
+    <div class="status-legend">
+        <div class="legend-item"><span class="legend-chip" style="background:#ffb545"></span> Pending</div>
+        <div class="legend-item"><span class="legend-chip" style="background:#4a86ff"></span> Processing</div>
+        <div class="legend-item"><span class="legend-chip" style="background:#7e6fff"></span> Shipped</div>
+        <div class="legend-item"><span class="legend-chip" style="background:#3dcb6c"></span> Delivered</div>
+        <div class="legend-item"><span class="legend-chip" style="background:#ff3f5f"></span> Cancelled</div>
+        <div style="margin-left:auto" class="bulk-actions">
+            <MudCheckBox T="bool" Checked="selectAll" CheckedChanged="@( (bool v) => ToggleSelectAll(v) )" Label="Select all on page" />
+            <MudSelect T="VeronaShop.Data.Entites.OrderStatus" Value="bulkStatus" ValueChanged="@( (VeronaShop.Data.Entites.OrderStatus s) => bulkStatus = s)" Dense="true" Style="min-width:160px">
+                @foreach (var s in Enum.GetValues(typeof(VeronaShop.Data.Entites.OrderStatus)))
+                {
+                    <MudSelectItem Value="@( (VeronaShop.Data.Entites.OrderStatus)s )">@s</MudSelectItem>
+                }
+            </MudSelect>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await ApplyBulkStatus())">Apply to selected</MudButton>
+        </div>
+    </div>
+    <div class="d-flex gap-3 align-center mb-3">
+        <MudTextField @bind-Value="searchTerm" Placeholder="Search order # or customer" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" OnImmediateValueChanged="OnSearchChanged" />
+
+        <MudSelect T="VeronaShop.Data.Entites.OrderStatus?" Value="statusFilter" Placeholder="All statuses" Dense="true" Style="min-width:200px" ValueChanged="@(async (VeronaShop.Data.Entites.OrderStatus? v) => { statusFilter = v; page = 0; await LoadOrdersAsync(); })">
+            <MudSelectItem T="VeronaShop.Data.Entites.OrderStatus?" Value="null">All statuses</MudSelectItem>
+            @foreach (var s in Enum.GetValues(typeof(VeronaShop.Data.Entites.OrderStatus)).Cast<VeronaShop.Data.Entites.OrderStatus>())
+            {
+                <MudSelectItem T="VeronaShop.Data.Entites.OrderStatus?" Value="@s">@s</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudDatePicker @bind-Date="dateFrom" Label="From" Clearable="true" />
+        <MudDatePicker @bind-Date="dateTo" Label="To" Clearable="true" />
+        <MudButton Variant="Variant.Text" OnClick="@(async () => { page = 0; await LoadOrdersAsync(); })">Apply</MudButton>
+
+        <MudSpacer />
+
+        <div class="d-flex align-center">
+            <MudText Typo="Typo.body2" Class="mr-2">Page size</MudText>
+            <MudSelect T="int" Value="pageSize" Dense="true" ValueChanged="@(async (int v) => { pageSize = v; page = 0; await LoadOrdersAsync(); })" Style="width:80px">
+                <MudSelectItem T="int" Value="10">10</MudSelectItem>
+                <MudSelectItem T="int" Value="20">20</MudSelectItem>
+                <MudSelectItem T="int" Value="50">50</MudSelectItem>
+            </MudSelect>
+        </div>
+    </div>
+
+    @if (orders == null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (!orders.Any())
+    {
+        <MudText>No orders found.</MudText>
+    }
+    else
+    {
+        <MudGrid GutterSize="GutterSize.Small">
+            @foreach (var o in orders)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    @{ var cls = "order-card-elevated" + (recentlyChangedIds.Contains(o.Id) ? " order-status-flash" : string.Empty); }
+                    <MudCard Class="@cls">
+                        <MudCardContent>
+                            <div class="d-flex justify-space-between align-center">
+                                <div>
+                                    <MudText Typo="Typo.h6">@o.OrderNumber</MudText>
+                                    <MudText Typo="Typo.caption">@o.OrderDate.ToString("g")</MudText>
+                                </div>
+                                <div class="d-flex" style="gap:8px;align-items:center;">
+                                    <MudChip T="string" Color="@(GetStatusColor(o.Status))" Variant="Variant.Filled">@o.Status.ToString()</MudChip>
+                                    @if (o.IsPaid)
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Variant="Variant.Filled">Paid</MudChip>
+                                    }
+                                </div>
+                            </div>
+
+                            <MudDivider Class="my-2" />
+
+                            <div>
+                                <MudText>@o.Customer?.Name</MudText>
+                                <MudText Typo="Typo.caption">@o.Customer?.Email</MudText>
+                            </div>
+
+                            <div class="d-flex justify-space-between align-center mt-2">
+                                <div>
+                                    <MudText Typo="Typo.subtitle1">@o.TotalAmount.ToString("C")</MudText>
+                                </div>
+                                <div class="d-flex" style="gap:8px;">
+                                    <MudCheckBox T="bool" Checked="@( selectedIdsMap.ContainsKey(o.Id) ? selectedIdsMap[o.Id] : false )" CheckedChanged="@( (bool v) => selectedIdsMap[o.Id] = v )" />
+                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@( () => ShowDetails(o.Id) )">Details</MudButton>
+                                    <MudMenu Icon="Icons.Material.Filled.MoreVert">
+                                        <MudMenuItem OnClick="@( async () => await ChangeStatus(o.Id, OrderStatus.Processing) )">Mark Processing</MudMenuItem>
+                                        <MudMenuItem OnClick="@( async () => await ChangeStatus(o.Id, OrderStatus.Shipped) )">Mark Shipped</MudMenuItem>
+                                        <MudMenuItem OnClick="@( async () => await ChangeStatus(o.Id, OrderStatus.Delivered) )">Mark Delivered</MudMenuItem>
+                                    </MudMenu>
+                                </div>
+                            </div>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+
+        <div class="d-flex justify-space-between align-center mt-3">
+            <div>
+                <MudText Typo="Typo.caption">Showing page @(page+1) of @TotalPages — @totalCount orders</MudText>
+            </div>
+            <div class="d-flex gap-2">
+                <MudButton Disabled="@(page==0)" OnClick="@(async () => await FirstPage())">First</MudButton>
+                <MudButton Disabled="@(page==0)" OnClick="@(async () => await PrevPage())">Previous</MudButton>
+                <MudButton Disabled="@(page>=TotalPages-1)" OnClick="@(async () => await NextPage())">Next</MudButton>
+                <MudButton Disabled="@(page>=TotalPages-1)" OnClick="@(async () => await LastPage())">Last</MudButton>
+            </div>
+        </div>
+    }
+
+    @if (selectedOrder != null)
+    {
+        <MudDivider Class="my-4" />
+        <MudPaper Class="pa-3">
+            <MudText Typo="Typo.h6">Order @selectedOrder.OrderNumber</MudText>
+            <MudText>Placed: @selectedOrder.OrderDate.ToString("g")</MudText>
+            <MudText>Customer: @selectedOrder.Customer?.Name (@selectedOrder.Customer?.Email)</MudText>
+            <MudTable Items="selectedOrder.OrderProducts" Dense="true">
+                <HeaderContent>
+                    <MudTh>Product</MudTh>
+                    <MudTh>Qty</MudTh>
+                    <MudTh>Unit</MudTh>
+                    <MudTh>Line</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.ProductName</MudTd>
+                    <MudTd>@context.Quantity</MudTd>
+                    <MudTd>@context.UnitPrice.ToString("C")</MudTd>
+                    <MudTd>@(context.UnitPrice * context.Quantity).ToString("C")</MudTd>
+                </RowTemplate>
+            </MudTable>
+            <div class="d-flex justify-space-between mt-2">
+                <div />
+                <div>
+                    <MudText Typo="Typo.h6">Total: @selectedOrder.TotalAmount.ToString("C")</MudText>
+                </div>
+            </div>
+            <div class="mt-2">
+                <MudButton Variant="Variant.Outlined" OnClick="CloseDetails">Close</MudButton>
+            </div>
+        </MudPaper>
+    }
+</MudPaper>
+
+@code {
+    private List<VeronaShop.Data.Entites.Orders>? orders;
+    private VeronaShop.Data.Entites.Orders? selectedOrder;
+
+    // search / filter / paging
+    private string? searchTerm;
+    private OrderStatus? statusFilter;
+    private DateTime? dateFrom;
+    private DateTime? dateTo;
+    private int page = 0;
+    private int pageSize = 10;
+    private int totalCount = 0;
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
+
+    // selection and bulk
+    private bool selectAll = false;
+    private VeronaShop.Data.Entites.OrderStatus bulkStatus = OrderStatus.Processing;
+    private HashSet<int> recentlyChangedIds = new();
+    private Dictionary<int, bool> selectedIdsMap = new();
+
+    private async Task ToggleSelectAll(bool v)
+    {
+        selectAll = v;
+        selectedIdsMap.Clear();
+        if (v && orders != null)
+        {
+            foreach (var o in orders) selectedIdsMap[o.Id] = true;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ApplyBulkStatus()
+    {
+        var ids = selectedIdsMap.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
+        if (!ids.Any()) { Snackbar.Add("No orders selected", Severity.Warning); return; }
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            var rows = await db.Orders.Where(o => ids.Contains(o.Id)).ToListAsync();
+            foreach (var r in rows)
+            {
+                r.Status = bulkStatus;
+                r.UpdatedAt = DateTimeOffset.UtcNow;
+                recentlyChangedIds.Add(r.Id);
+            }
+            await db.SaveChangesAsync();
+            Snackbar.Add($"Updated {rows.Count} orders", Severity.Success);
+            await LoadOrdersAsync();
+            // clear map
+            selectedIdsMap.Clear();
+            selectAll = false;
+            // remove highlight after short delay
+            _ = Task.Run(async () => { await Task.Delay(1400); recentlyChangedIds.Clear(); await InvokeAsync(StateHasChanged); });
+        }
+        catch
+        {
+            Snackbar.Add("Bulk update failed", Severity.Error);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrdersAsync();
+    }
+
+    private async Task LoadOrdersAsync()
+    {
+        using var db = DbFactory.CreateDbContext();
+        var q = db.Set<VeronaShop.Data.Entites.Orders>().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var s = searchTerm.Trim();
+            q = q.Where(o => o.OrderNumber.Contains(s) || o.Customer.Email.Contains(s) || o.Customer.Name.Contains(s));
+        }
+        if (statusFilter.HasValue)
+            q = q.Where(o => o.Status == statusFilter.Value);
+        if (dateFrom.HasValue)
+            q = q.Where(o => o.OrderDate >= dateFrom.Value);
+        if (dateTo.HasValue)
+            q = q.Where(o => o.OrderDate <= dateTo.Value.AddDays(1));
+
+        totalCount = await q.CountAsync();
+
+        orders = await q
+            .Include(o => o.Customer)
+            .Include(o => o.OrderProducts)
+            .OrderByDescending(o => o.CreatedAt)
+            .Skip(page * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+    }
+
+    private async Task ShowDetails(int orderId)
+    {
+        using var db = DbFactory.CreateDbContext();
+        selectedOrder = await db.Set<VeronaShop.Data.Entites.Orders>()
+            .Include(o => o.Customer)
+            .Include(o => o.OrderProducts)
+            .FirstOrDefaultAsync(o => o.Id == orderId);
+        if (selectedOrder == null)
+        {
+            Snackbar.Add("Order not found", Severity.Warning);
+        }
+    }
+
+    private void CloseDetails()
+    {
+        selectedOrder = null;
+    }
+
+    private async Task ChangeStatus(int orderId, VeronaShop.Data.Entites.OrderStatus status)
+    {
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            var o = await db.Orders.FindAsync(orderId);
+            if (o != null)
+            {
+                o.Status = status;
+                o.UpdatedAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync();
+                Snackbar.Add($"Order {o.OrderNumber} status updated", Severity.Success);
+                await LoadOrdersAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            Snackbar.Add("Failed to update status", Severity.Error);
+        }
+    }
+
+    private async Task ApplyFilters()
+    {
+        page = 0;
+        await LoadOrdersAsync();
+    }
+
+    private async Task FirstPage()
+    {
+        page = 0;
+        await LoadOrdersAsync();
+    }
+
+    private async Task PrevPage()
+    {
+        page = Math.Max(0, page - 1);
+        await LoadOrdersAsync();
+    }
+
+    private async Task NextPage()
+    {
+        page = Math.Min(TotalPages - 1, page + 1);
+        await LoadOrdersAsync();
+    }
+
+    private async Task LastPage()
+    {
+        page = TotalPages - 1;
+        await LoadOrdersAsync();
+    }
+
+    private Color GetStatusColor(OrderStatus status)
+    {
+        return status switch
+        {
+            OrderStatus.Pending => Color.Warning,
+            OrderStatus.Processing => Color.Info,
+            OrderStatus.Shipped => Color.Primary,
+            OrderStatus.Delivered => Color.Success,
+            OrderStatus.Cancelled => Color.Error,
+            _ => Color.Default,
+        };
+    }
+}

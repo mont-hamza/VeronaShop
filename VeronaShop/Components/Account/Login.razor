@@ -1,0 +1,141 @@
+@page "/account/login"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Logging
+@using VeronaShop.Data.Entites
+@using Microsoft.AspNetCore.WebUtilities
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject VeronaShop.Services.CartService CartService
+@inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
+@inject ILogger<Login> Logger
+@rendermode InteractiveServer
+
+<MudGrid Justify="Justify.Center" Class="mt-12">
+    <MudItem xs="12" sm="8" md="4">
+        <MudCard>
+            <MudCardContent>
+                <div class="d-flex flex-column align-center">
+                    <MudAvatar Icon="Icons.Material.Filled.Lock" Size="Size.Large" Class="mb-4" />
+                    <MudText Typo="Typo.h5" GutterBottom="true">Sign in to VeronaShop</MudText>
+                    <MudText Typo="Typo.body2" Class="mb-4">Enter your credentials to continue.</MudText>
+                </div>
+
+                <EditForm Model="loginModel" OnValidSubmit="HandleLogin" FormName="LoginForm">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <MudAlert Severity="Severity.Error" Elevation="0">@errorMessage</MudAlert>
+                    }
+
+                    <MudTextField @bind-Value="loginModel.UserNameOrEmail" Label="Username or Email" Required="true" AutoFocus="true" />
+                    <MudTextField @bind-Value="loginModel.Password" Label="Password" InputType="InputType.Password" Required="true" />
+
+                    <div class="d-flex justify-space-between align-center mt-3">
+                        <MudCheckBox T="bool" @bind-Checked="rememberMe">Remember me</MudCheckBox>
+                        <MudLink Href="/account/forgot">Forgot?</MudLink>
+                    </div>
+
+                    <div class="mt-4 d-flex justify-end">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit">Sign in</MudButton>
+                    </div>
+                </EditForm>
+
+                <div class="mt-3">
+                    <MudText Typo="Typo.body2">Don't have an account? <MudLink Href="/account/register">Register</MudLink></MudText>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+<!-- Fallback: non-Blazor POST for cookie-based auth when Blazor sign-in fails due to headers started -->
+<form method="post" action="/auth/login" style="display:none" id="fallbackLoginForm">
+    <input name="user" id="fallback-user" />
+    <input name="password" id="fallback-password" />
+    <input name="returnUrl" id="fallback-returnUrl" />
+    <input name="sessionId" id="fallback-sessionId" />
+</form>
+
+@code {
+    private LoginModel loginModel = new LoginModel();
+    private string errorMessage;
+    private string returnUrl;
+    private bool rememberMe;
+
+    public class LoginModel
+    {
+        [Required]
+        public string UserNameOrEmail { get; set; }
+        [Required]
+        public string Password { get; set; }
+    }
+
+    protected override void OnInitialized()
+    {
+        // read returnUrl from query string if present
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("returnUrl", out var ru))
+        {
+            returnUrl = ru.FirstOrDefault();
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        try { Logger.LogInformation("HandleLogin invoked for {User}", loginModel?.UserNameOrEmail ?? "<null>"); } catch { }
+        errorMessage = null;
+        // allow login by username or email
+        ApplicationUser user = null;
+        if (loginModel.UserNameOrEmail.Contains("@"))
+        {
+            user = await UserManager.FindByEmailAsync(loginModel.UserNameOrEmail);
+        }
+        else
+        {
+            user = await UserManager.FindByNameAsync(loginModel.UserNameOrEmail);
+        }
+
+        if (user != null)
+        {
+            try
+            {
+                try { Logger.LogInformation("User found with id {Id} for login attempt", user.Id); } catch { }
+
+                // Do not call PasswordSignInAsync from a Blazor component because the response headers
+                // may already be started (Blazor Server) which prevents setting cookies. Instead verify
+                // the password server-side and perform a browser POST to /auth/login which will set the
+                // authentication cookie in a normal HTTP response.
+                var pwOkCheck = await UserManager.CheckPasswordAsync(user, loginModel.Password);
+                try { Logger.LogInformation("Password match check for user {User}: {PwOk}", user.UserName, pwOkCheck); } catch { }
+
+                if (pwOkCheck)
+                {
+                    // Attempt browser fallback POST to set cookie
+                    var sessionId = string.Empty;
+                    try { sessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "verona_cart_id"); } catch { }
+                    Snackbar.Add("Signing in via browser request...", Severity.Info);
+                    try { Logger.LogInformation("Invoking browser fallback POST for {User}", user.UserName); } catch { }
+                    await JSRuntime.InvokeVoidAsync("submitFallbackLogin", user.UserName, loginModel.Password, string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl, sessionId);
+                    return;
+                }
+
+                // Password did not match or other failure
+                errorMessage = "Invalid username or password.";
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Login error: {ex}");
+                errorMessage = "An error occurred during login. Check server logs.";
+            }
+        }
+        else
+        {
+            errorMessage = "Invalid username or password.";
+        }
+    }
+}

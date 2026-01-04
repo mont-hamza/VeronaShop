@@ -1,0 +1,111 @@
+@page "/account/orders/{orderId:int}"
+@using Microsoft.EntityFrameworkCore
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components
+@inject ISnackbar Snackbar
+
+<PageTitle>Order Details</PageTitle>
+
+<div class="order-details-page">
+    @if (order == null)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <h3>Order @order.OrderNumber</h3>
+        <div><strong>Placed:</strong> @order.OrderDate.ToLocalTime().ToString("g")</div>
+        <div><strong>Status:</strong> @order.Status.ToString()</div>
+        <div><strong>Total:</strong> @order.TotalAmount.ToString("C")</div>
+
+        <h4>Items</h4>
+        <ul>
+            @foreach (var it in order.OrderProducts)
+            {
+                <li>@it.ProductName x @it.Quantity (@it.UnitPrice.ToString("C"))</li>
+            }
+        </ul>
+
+        <div style="margin-top:12px">
+            <button class="mud-button-root mud-button" @onclick="PrintInvoice">Print</button>
+            <button class="mud-button-root mud-button" @onclick="DownloadInvoice">Download PDF</button>
+            <button class="mud-button-root mud-button" @onclick="EmailInvoice">Email Invoice</button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int orderId { get; set; }
+    private Orders? order;
+    [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; }
+    private bool shouldPrintAfterRender = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (shouldPrintAfterRender)
+        {
+            shouldPrintAfterRender = false;
+            await PrintInvoice();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthenticationStateTask;
+        var user = auth.User;
+        if (user?.Identity?.IsAuthenticated != true) return;
+
+        using var db = DbFactory.CreateDbContext();
+        order = await db.Orders.Include(o => o.OrderProducts).FirstOrDefaultAsync(o => o.Id == orderId);
+        if (order == null)
+        {
+            Navigation.NavigateTo("/account/orders");
+        }
+
+        // if ?print=true in query, set flag to print after render (JS interop allowed)
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var q = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        if (q["print"] == "true")
+        {
+            shouldPrintAfterRender = true;
+        }
+    }
+
+    [Inject] private IJSRuntime JS { get; set; }
+
+    private async Task PrintInvoice()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private async Task DownloadInvoice()
+    {
+        // download PDF by calling server endpoint
+        var url = $"/api/invoices/{order.Id}.pdf";
+        Navigation.NavigateTo(url, true);
+    }
+
+    private async Task EmailInvoice()
+    {
+        var to = order.Customer?.Email ?? string.Empty;
+        try
+        {
+            var client = new System.Net.Http.HttpClient();
+            var res = await client.PostAsJsonAsync($"/api/invoices/{order.Id}/email", new { To = to });
+            if (res.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Invoice emailed", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Failed to email invoice", Severity.Error);
+            }
+        }
+        catch { }
+    }
+}

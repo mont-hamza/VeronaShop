@@ -1,0 +1,209 @@
+@page "/account/register"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+@inject RoleManager<IdentityRole<int>> RoleManager
+@using Microsoft.Extensions.Logging
+@inject ILogger<Register> Logger
+@using MudBlazor
+
+<MudPaper Class="pa-6 mx-auto" Style="max-width:560px;">
+    <MudText Typo="Typo.h5" Class="mb-3">Create your account</MudText>
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <MudAlert Severity="Severity.Info" Elevation="0" Class="mb-2">@statusMessage</MudAlert>
+    }
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Elevation="0" Class="mb-2">@errorMessage</MudAlert>
+    }
+    <EditForm Model="registerModel" OnValidSubmit="HandleRegister" FormName="RegisterForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="registerModel.FirstName" Label="First name" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="registerModel.LastName" Label="Last name" Required="true" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudTextField @bind-Value="registerModel.UserName" Label="Username" Required="true" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudTextField @bind-Value="registerModel.Email" Label="Email" Required="true" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudTextField @bind-Value="registerModel.Phone" Label="Phone" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudTextField @bind-Value="registerModel.Password" Label="Password" InputType="InputType.Password" Required="true" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudTextField @bind-Value="registerModel.Address" Label="Address" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="registerModel.City" Label="City" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="registerModel.Region" Label="State / Region" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="registerModel.Country" Label="Country" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker @bind-Date="registerModel.DateOfBirth" Label="Date of birth" />
+            </MudItem>
+
+            <MudItem xs="12" Class="d-flex justify-end mt-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit">Create account</MudButton>
+                
+            </MudItem>
+        </MudGrid>
+
+    </EditForm>
+</MudPaper>
+
+@code {
+    private RegisterModel registerModel = new RegisterModel();
+
+    public class RegisterModel
+    {
+        [Required]
+        public string UserName { get; set; }
+        [Required, EmailAddress]
+        public string Email { get; set; }
+        [Required, MinLength(6)]
+        public string Password { get; set; }
+        public string DisplayName { get; set; }
+
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+
+        public string Address { get; set; }
+        public string City { get; set; }
+        public string Region { get; set; }
+        public string Country { get; set; }
+        public DateTime? DateOfBirth { get; set; }
+        public string Phone { get; set; }
+    }
+
+    
+
+    private string errorMessage;
+    private string statusMessage;
+
+    private async Task HandleRegister()
+    {
+        try { Logger.LogInformation("HandleRegister invoked for {User}", registerModel?.UserName); } catch { }
+        statusMessage = "Submitting registration...";
+        StateHasChanged();
+        var user = new VeronaShop.Data.Entites.ApplicationUser
+        {
+            UserName = registerModel.UserName,
+            Email = registerModel.Email,
+                PhoneNumber = registerModel.Phone,
+            DisplayName = registerModel.DisplayName ?? registerModel.UserName,
+            FirstName = registerModel.FirstName,
+            LastName = registerModel.LastName,
+            Address = registerModel.Address,
+            City = registerModel.City,
+            Region = registerModel.Region,
+            Country = registerModel.Country,
+            DateOfBirth = registerModel.DateOfBirth,
+            EmailConfirmed = true
+        };
+
+        var result = await UserManager.CreateAsync(user, registerModel.Password);
+        if (result.Succeeded)
+        {
+            statusMessage = "User created; creating customer record...";
+            StateHasChanged();
+            // create Customer record
+            var customer = new VeronaShop.Data.Entites.Customer
+            {
+                Name = registerModel.DisplayName ?? registerModel.UserName,
+                Email = registerModel.Email,
+                Phone = registerModel.Phone ?? string.Empty,
+                Address = registerModel.Address ?? string.Empty,
+                City = registerModel.City ?? string.Empty,
+                Region = registerModel.Region ?? string.Empty,
+                Country = registerModel.Country ?? string.Empty,
+                DateOfBirth = registerModel.DateOfBirth,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            // Use a short-lived DbContext for writes from Blazor component
+            using (var db = DbFactory.CreateDbContext())
+            {
+                db.Customers.Add(customer);
+                await db.SaveChangesAsync();
+
+                // link customer to identity user
+                customer.IdentityUserId = user.Id;
+                db.Customers.Update(customer);
+                await db.SaveChangesAsync();
+            }
+            // assign default role (ensure role exists)
+            try
+            {
+                var roleName = "Customer";
+                if (!await RoleManager.RoleExistsAsync(roleName))
+                {
+                    await RoleManager.CreateAsync(new IdentityRole<int>(roleName));
+                }
+                await UserManager.AddToRoleAsync(user, roleName);
+            }
+            catch (Exception ex)
+            {
+                try { Logger.LogWarning(ex, "Failed to assign Customer role to {User}", user.UserName); } catch { }
+            }
+            statusMessage = "Account created — signing in...";
+            StateHasChanged();
+            Snackbar.Add("Account created — signing in...", Severity.Info);
+            try
+            {
+                // try to use username first, fallback to email
+                var loginField = user.UserName ?? user.Email;
+                var sessionId = string.Empty;
+                try { sessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "verona_cart_id"); } catch { }
+                await JSRuntime.InvokeVoidAsync("submitFallbackLogin", loginField, registerModel.Password, "/", sessionId);
+                statusMessage = "Sign-in requested; redirecting...";
+                StateHasChanged();
+                return;
+            }
+            catch (Exception ex)
+            {
+                try { Logger.LogError(ex, "Fallback login failed for {User}", user.UserName); } catch { }
+                statusMessage = "Account created but automatic sign-in failed. Please sign in manually.";
+                Snackbar.Add("Account created. Please sign in manually.", Severity.Warning);
+                Navigation.NavigateTo("/account/login");
+                return;
+            }
+        }
+        else
+        {
+            var errs = string.Join("; ", result.Errors.Select(e => e.Description));
+            Console.Error.WriteLine($"User creation failed: {errs}");
+            errorMessage = errs;
+            statusMessage = "Registration failed";
+            try { Logger.LogWarning("User creation failed: {Errors}", errs); } catch { }
+        }
+
+        try { Logger.LogInformation("HandleRegister finished for {User}", registerModel?.UserName); } catch { }
+    }
+}

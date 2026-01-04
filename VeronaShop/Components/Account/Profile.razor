@@ -1,0 +1,357 @@
+@page "/account/profile"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@inject UserManager<ApplicationUser> UserManager
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject ILogger<Profile> Logger
+@inject IConfiguration Configuration
+@using MudBlazor
+
+<MudContainer Class="mt-6">
+    <MudPaper Class="pa-4 mx-auto" Style="max-width:720px;">
+       
+
+        <MudPaper Class="pa-4 mt-4">
+            <MudText Typo="Typo.h6">Customer Details</MudText>
+            
+            @if (!editingCustomer)
+            {
+                @if (customer == null)
+                {
+                    <MudText>No customer profile linked to this account.</MudText>
+                    <div class="mt-2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartCreateCustomer">Create profile</MudButton>
+                    </div>
+                }
+            <!-- cleaned UI: hidden debug info -->
+                else
+                {
+                    <div class="d-flex justify-space-between align-center">
+                        <div></div>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="StartEditCustomer">Edit</MudButton>
+                    </div>
+                    <MudGrid Class="mt-2">
+                        <MudItem xs="12" sm="6"> <MudText><strong>Name:</strong> @customer.Name</MudText> </MudItem>
+                        <MudItem xs="12" sm="6"> <MudText><strong>Email:</strong> @customer.Email</MudText> </MudItem>
+                        <MudItem xs="12" sm="6"> <MudText><strong>Phone:</strong> @customer.Phone</MudText> </MudItem>
+                        <MudItem xs="12"> <MudText><strong>Address:</strong> @customer.Address</MudText> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudText><strong>City:</strong> @customer.City</MudText> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudText><strong>Region:</strong> @customer.Region</MudText> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudText><strong>Country:</strong> @customer.Country</MudText> </MudItem>
+                    </MudGrid>
+                }
+            }
+            else
+            {
+                <EditForm Model="customerEdit" OnValidSubmit="SaveCustomer">
+                    <MudGrid Class="mt-2">
+                        <MudItem xs="12"> <MudTextField @bind-Value="customerEdit.Name" Label="Name" Required="true" /> </MudItem>
+                        <MudItem xs="12"> <MudTextField @bind-Value="customerEdit.Email" Label="Email" Required="true" /> </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField T="string"
+                                          Value="customerEdit.Phone"
+                                          ValueChanged="@( (string v) => OnPhoneChanged(v) )"
+                                          ValueExpression="@(() => customerEdit.Phone)"
+                                          Label="Phone"
+                                          @ref="phoneFieldRef" />
+                        </MudItem>
+                        <MudItem xs="12"> <MudTextField @bind-Value="customerEdit.Address" Label="Address" /> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudTextField @bind-Value="customerEdit.City" Label="City" /> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudTextField @bind-Value="customerEdit.Region" Label="Region" /> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudTextField @bind-Value="customerEdit.Country" Label="Country" /> </MudItem>
+                        <MudItem xs="12" Class="d-flex justify-end">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit" Disabled="savingCustomer">@(savingCustomer ? "Saving..." : "Save")</MudButton>
+                            <MudButton Variant="Variant.Text" OnClick="CancelEditCustomer">Cancel</MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </EditForm>
+                
+            }
+        </MudPaper>
+
+        <MudPaper Class="pa-4 mt-4">
+            <MudText Typo="Typo.h6">Orders</MudText>
+            @if (orders == null || !orders.Any())
+            {
+                <MudText>No orders found.</MudText>
+            }
+            else
+            {
+                <MudTable Items="orders" Dense="true" Hover="true" Class="mt-2">
+                    <HeaderContent>
+                        <MudTh>Order #</MudTh>
+                        <MudTh>Date</MudTh>
+                        <MudTh>Total</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.OrderNumber</MudTd>
+                        <MudTd>@context.OrderDate.ToString("g")</MudTd>
+                        <MudTd>@context.TotalAmount.ToString("C")</MudTd>
+                        <MudTd>@context.Status.ToString()</MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                @foreach (var o in orders)
+                {
+                    <MudPaper Class="pa-3 mt-2">
+                        <MudText Typo="Typo.subtitle1">Items for @o.OrderNumber</MudText>
+                        <MudList T="string">
+                            @foreach (var line in o.OrderProducts)
+                            {
+                                <MudListItem T="string">@line.ProductName — @line.Quantity × @line.UnitPrice.ToString("C") = @line.LineTotal.ToString("C")</MudListItem>
+                            }
+                        </MudList>
+                    </MudPaper>
+                }
+            }
+        </MudPaper>
+        
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private ApplicationUser user;
+    private ProfileModel editModel = new();
+
+    public class ProfileModel
+    {
+        public string Email { get; set; }
+        public string DisplayName { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var name = authState.User.Identity?.Name;
+        if (string.IsNullOrEmpty(name))
+        {
+            Navigation.NavigateTo("/account/login");
+            return;
+        }
+
+        user = await UserManager.FindByNameAsync(name);
+        if (user != null)
+        {
+            editModel.Email = user.Email;
+            editModel.DisplayName = user.DisplayName;
+            editModel.FirstName = user.FirstName;
+            editModel.LastName = user.LastName;
+        }
+        // load customer and orders linked to this user (if any)
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            customer = await db.Customers.Include(c => c.Orders).ThenInclude(o => o.OrderProducts).FirstOrDefaultAsync(c => c.IdentityUserId == user.Id);
+            if (customer != null)
+            {
+                // ensure orders have their products loaded
+                orders = customer.Orders?.OrderByDescending(o => o.OrderDate).ToList() ?? new List<Orders>();
+            }
+            else
+            {
+                orders = new List<Orders>();
+            }
+        }
+        catch (Exception ex)
+        {
+            try { Console.Error.WriteLine($"Profile load failed: {ex}"); } catch { }
+        }
+    }
+
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; }
+
+    private async Task SaveProfile()
+    {
+        if (user == null) return;
+        user.DisplayName = editModel.DisplayName;
+        user.FirstName = editModel.FirstName;
+        user.LastName = editModel.LastName;
+        var res = await UserManager.UpdateAsync(user);
+        if (res.Succeeded)
+        {
+            Snackbar.Add("Profile saved", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to save profile", Severity.Error);
+        }
+    }
+
+    [Inject] ISnackbar Snackbar { get; set; }
+
+    private Customer customer;
+    private List<Orders> orders = new();
+    private bool editingCustomer = false;
+    private Customer customerEdit = new Customer();
+    private MudTextField<string> phoneFieldRef;
+
+    private void OnPhoneChanged(string v) => customerEdit.Phone = v;
+
+    private void StartEditCustomer()
+    {
+        if (customer == null) return;
+        customerEdit = new Customer
+        {
+            Id = customer.Id,
+            Name = customer.Name,
+            Email = customer.Email,
+            Phone = customer.Phone,
+            Address = customer.Address,
+            City = customer.City,
+            Region = customer.Region,
+            Country = customer.Country,
+            DateOfBirth = customer.DateOfBirth,
+            IdentityUserId = customer.IdentityUserId
+        };
+        editingCustomer = true;
+    }
+
+    private void StartCreateCustomer()
+    {
+        customerEdit = new Customer
+        {
+            Email = user?.Email ?? string.Empty,
+            Name = user?.DisplayName ?? user?.UserName ?? string.Empty,
+            IdentityUserId = user?.Id
+        };
+        editingCustomer = true;
+    }
+
+    private async Task SaveCustomer()
+    {
+        try
+        {
+            try { Logger.LogInformation("SaveCustomer invoked for Id={Id} Name={Name} Email={Email} Phone={Phone}", customerEdit.Id, customerEdit.Name, customerEdit.Email, customerEdit.Phone); } catch { }
+            try { Console.WriteLine($"SaveCustomer invoked for Id={customerEdit.Id} Name={customerEdit.Name} Email={customerEdit.Email} Phone={customerEdit.Phone}"); } catch { }
+            using var db = DbFactory.CreateDbContext();
+
+            int rows = 0;
+            string conn = "";
+
+            if (customerEdit.Id == 0)
+            {
+                // new customer
+                customerEdit.CreatedAt = DateTimeOffset.UtcNow;
+                db.Customers.Add(customerEdit);
+                rows = await db.SaveChangesAsync();
+                try { Logger.LogInformation("Created new customer Id={Id}", customerEdit.Id); } catch { }
+            }
+            else
+            {
+                // update existing - fetch tracked entity and apply changes
+                var existing = await db.Customers.FirstOrDefaultAsync(c => c.Id == customerEdit.Id);
+                if (existing == null)
+                {
+                    Snackbar.Add("Customer not found", Severity.Error);
+                    return;
+                }
+                existing.Name = customerEdit.Name;
+                existing.Email = customerEdit.Email;
+                existing.Phone = customerEdit.Phone;
+                existing.Address = customerEdit.Address;
+                existing.City = customerEdit.City;
+                existing.Region = customerEdit.Region;
+                existing.Country = customerEdit.Country;
+                existing.DateOfBirth = customerEdit.DateOfBirth;
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+                db.Customers.Update(existing);
+                rows = await db.SaveChangesAsync();
+                try { Logger.LogInformation("Updated customer Id={Id}", existing.Id); } catch { }
+
+                // clean binding only - no raw SQL fallback
+            }
+
+            // reload customer and orders
+            customer = await db.Customers.Include(c => c.Orders).ThenInclude(o => o.OrderProducts).FirstOrDefaultAsync(c => c.Id == customerEdit.Id);
+            if (customer == null)
+            {
+                customer = await db.Customers.Include(c => c.Orders).ThenInclude(o => o.OrderProducts).FirstOrDefaultAsync(c => c.IdentityUserId == user.Id);
+            }
+            orders = customer?.Orders?.OrderByDescending(o => o.OrderDate).ToList() ?? new List<Orders>();
+            // If this customer is linked to the current identity user, update ApplicationUser phone/display name
+            try
+            {
+                if (customer != null && customer.IdentityUserId == user?.Id)
+                {
+                    var appUser = await UserManager.FindByIdAsync(user.Id.ToString());
+                    var changed = false;
+                    if (appUser != null)
+                    {
+                        if (appUser.PhoneNumber != customer.Phone)
+                        {
+                            appUser.PhoneNumber = customer.Phone;
+                            changed = true;
+                        }
+                        if (appUser.DisplayName != customer.Name)
+                        {
+                            appUser.DisplayName = customer.Name;
+                            changed = true;
+                        }
+                        if (changed)
+                        {
+                            var ures = await UserManager.UpdateAsync(appUser);
+                            try { Console.WriteLine($"Updated ApplicationUser after customer save: {ures.Succeeded}"); } catch { }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                try { Console.Error.WriteLine($"Failed to update ApplicationUser: {ex}"); } catch { }
+            }
+            try { Logger.LogInformation("Reloaded customer Id={Id}", customer?.Id); } catch { }
+            Snackbar.Add("Customer profile saved", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            try { Logger.LogError(ex, "SaveCustomer failed"); } catch { }
+            Snackbar.Add("Failed to save customer profile", Severity.Error);
+        }
+        finally
+        {
+            editingCustomer = false;
+        }
+    }
+
+    private bool savingCustomer = false;
+    private string lastLoadedSnapshot;
+    private string lastSaveMessage;
+    private DateTimeOffset? lastSaveAt;
+    private string lastConnectionInfo;
+    // debug helpers removed
+
+    private static string MaskConnectionString(string conn)
+    {
+        if (string.IsNullOrEmpty(conn)) return "<no-conn>";
+        try
+        {
+            // crude mask: remove password keywords
+            var s = conn;
+            s = System.Text.RegularExpressions.Regex.Replace(s, "(?i)password=[^;]*", "password=***");
+            s = System.Text.RegularExpressions.Regex.Replace(s, "(?i)pwd=[^;]*", "pwd=***");
+            return s;
+        }
+        catch { return "<masked>"; }
+    }
+
+    private async Task OnSaveCustomerClick()
+    {
+        if (savingCustomer) return;
+        savingCustomer = true;
+        await SaveCustomer();
+        savingCustomer = false;
+    }
+
+    private void CancelEditCustomer()
+    {
+        editingCustomer = false;
+    }
+}
