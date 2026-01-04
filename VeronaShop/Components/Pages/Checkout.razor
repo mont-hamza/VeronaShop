@@ -201,6 +201,7 @@ else
                         var scopedUserMgr = scope.ServiceProvider.GetService<Microsoft.AspNetCore.Identity.UserManager<VeronaShop.Data.Entites.ApplicationUser>>();
                         var scopedEmail = scope.ServiceProvider.GetService<IEmailSender>();
                         var dbFactory = scope.ServiceProvider.GetService<Microsoft.EntityFrameworkCore.IDbContextFactory<VeronaShop.Data.ApplicationDbContext>>();
+                        var hubContext = scope.ServiceProvider.GetService<Microsoft.AspNetCore.SignalR.IHubContext<VeronaShop.Services.NotificationHub>>();
                         if (scopedUserMgr == null || scopedEmail == null || dbFactory == null) return;
 
                         using var db = dbFactory.CreateDbContext();
@@ -229,6 +230,16 @@ else
                                 notif.ErrorMessage = null;
                                 db.Notifications.Update(notif);
                                 await db.SaveChangesAsync();
+                                // broadcast updated counts
+                                try
+                                {
+                                    if (hubContext != null)
+                                    {
+                                        var totalNotifications = await db.Notifications.CountAsync();
+                                        await hubContext.Clients.All.SendCoreAsync("NotifyCounts", new object[] { await db.Orders.Where(o => o.Status == VeronaShop.Data.Entites.OrderStatus.Pending).CountAsync(), totalNotifications });
+                                    }
+                                }
+                                catch { }
                             }
                             catch (Exception ex)
                             {
@@ -237,6 +248,15 @@ else
                                 notif.ErrorMessage = ex.Message;
                                 db.Notifications.Update(notif);
                                 await db.SaveChangesAsync();
+                                try
+                                {
+                                    if (hubContext != null)
+                                    {
+                                        var totalNotifications = await db.Notifications.CountAsync();
+                                        await hubContext.Clients.All.SendCoreAsync("NotifyCounts", new object[] { await db.Orders.Where(o => o.Status == VeronaShop.Data.Entites.OrderStatus.Pending).CountAsync(), totalNotifications });
+                                    }
+                                }
+                                catch { }
                             }
                         }
                     }
