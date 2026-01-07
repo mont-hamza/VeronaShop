@@ -64,7 +64,7 @@
                                     <MudText Typo="Typo.caption">@o.OrderDate.ToString("g")</MudText>
                                 </div>
                             <div class="d-flex admin-order-actions" style="gap:8px;align-items:center;">
-                                    <MudChip T="string" Color="@(GetStatusColor(o.Status))" Variant="Variant.Filled">@o.Status.ToString()</MudChip>
+                                    <MudChip T="string" Color="@(GetStatusColor(o.Status))" Variant="Variant.Filled">@o.Status</MudChip>
                                     @if (o.IsPaid)
                                     {
                                         <MudChip T="string" Color="Color.Success" Variant="Variant.Filled">Paid</MudChip>

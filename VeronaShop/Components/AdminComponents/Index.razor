@@ -1,14 +1,172 @@
 @page "/admin"
+@using Microsoft.EntityFrameworkCore
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@using MudBlazor
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
 @rendermode InteractiveServer
 
 <PageTitle>Admin Dashboard</PageTitle>
 
-<h3>Admin Dashboard</h3>
+<MudContainer Class="mt-4">
+    <MudGrid>
+        <MudItem xs="12" md="3">
+            <MudPaper Class="pa-3">
+                <MudText Typo="Typo.subtitle1">Total Revenue</MudText>
+                <MudText Typo="Typo.h5">@TotalRevenue.ToString("C")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="3">
+            <MudPaper Class="pa-3">
+                <MudText Typo="Typo.subtitle1">Orders (30d)</MudText>
+                <MudText Typo="Typo.h5">@OrdersLast30d</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="3">
+            <MudPaper Class="pa-3">
+                <MudText Typo="Typo.subtitle1">Pending Orders</MudText>
+                <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">@PendingOrders.ToString()</MudChip>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="3">
+            <MudPaper Class="pa-3">
+                <MudText Typo="Typo.subtitle1">Customers</MudText>
+                <MudText Typo="Typo.h5">@CustomersCount</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
 
-<p>Welcome. Use the navigation to manage the shop.</p>
+    <MudGrid Class="mt-4">
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-3">
+                <MudText Typo="Typo.subtitle1">Revenue trend (last 12 weeks)</MudText>
+                <MudChart ChartType="ChartType.Line" Labels="@RevenueLabels" Data="@RevenueSeries" />
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-3">
+                <MudText Typo="Typo.subtitle1">Orders by status</MudText>
+                <MudChart ChartType="ChartType.Donut" Labels="@StatusLabels" Data="@StatusSeries" />
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
 
-<ul>
-    <li><a href="/admin/products">Products</a></li>
-    <li><a href="/admin/orders">Orders</a></li>
-    <li><a href="/admin/users">Users</a></li>
-</ul>
+    <MudGrid Class="mt-4">
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-3">
+                <div class="d-flex justify-space-between align-center">
+                    <MudText Typo="Typo.subtitle1">Recent Orders</MudText>
+                    <MudButton Variant="Variant.Text" OnClick="@(() => Navigation.NavigateTo("/admin/orders"))">View all</MudButton>
+                </div>
+                <MudTable Items="recentOrders" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Order</MudTh>
+                        <MudTh>Date</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh align="Align.Right">Total</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.OrderNumber</MudTd>
+                        <MudTd>@context.OrderDate.ToString("g")</MudTd>
+                        <MudTd><MudChip T="string" Color="@(GetStatusColor(context.Status))" Variant="Variant.Filled">@context.Status.ToString()</MudChip></MudTd>
+                        <MudTd Align="Align.Right">@context.TotalAmount.ToString("C")</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-3">
+                <MudText Typo="Typo.subtitle1">Top Products (30d)</MudText>
+                <MudTable Items="topProducts" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Product</MudTh>
+                        <MudTh align="Align.Right">Units</MudTh>
+                        <MudTh align="Align.Right">Revenue</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Name</MudTd>
+                        <MudTd Align="Align.Right">@context.Units</MudTd>
+                        <MudTd Align="Align.Right">@context.Revenue.ToString("C")</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private decimal TotalRevenue;
+    private int OrdersLast30d;
+    private int PendingOrders;
+    private int CustomersCount;
+
+    private string[] RevenueLabels = Array.Empty<string>();
+    private double[][] RevenueSeries = Array.Empty<double[]>();
+
+    private string[] StatusLabels = new[] { "Pending", "Processing", "Shipped", "Delivered", "Cancelled" };
+    private double[][] StatusSeries = Array.Empty<double[]>();
+
+    private List<Orders> recentOrders = new();
+    private List<(string Name, int Units, decimal Revenue)> topProducts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var db = DbFactory.CreateDbContext();
+
+        // KPIs
+        TotalRevenue = await db.Orders.SumAsync(o => (decimal?)o.TotalAmount) ?? 0m;
+        var since = DateTimeOffset.UtcNow.AddDays(-30);
+        OrdersLast30d = await db.Orders.CountAsync(o => o.OrderDate >= since);
+        PendingOrders = await db.Orders.CountAsync(o => o.Status == OrderStatus.Pending);
+        CustomersCount = await db.Customers.CountAsync();
+
+        // Revenue last 12 weeks
+        var start = DateTimeOffset.UtcNow.AddDays(-7 * 11);
+        var weeks = Enumerable.Range(0, 12)
+            .Select(i => new { Label = start.AddDays(7 * i).ToString("MMM d"), From = start.AddDays(7 * i), To = start.AddDays(7 * (i + 1)) })
+            .ToList();
+        RevenueLabels = weeks.Select(w => w.Label).ToArray();
+        var line = new List<double>();
+        foreach (var w in weeks)
+        {
+            var sum = await db.Orders.Where(o => o.OrderDate >= w.From && o.OrderDate < w.To)
+                .SumAsync(o => (decimal?)o.TotalAmount) ?? 0m;
+            line.Add((double)sum);
+        }
+        RevenueSeries = new[] { line.ToArray() };
+
+        // Orders by status
+        var statuses = Enum.GetValues(typeof(OrderStatus)).Cast<OrderStatus>().ToList();
+        var counts = new List<double>();
+        foreach (var s in statuses)
+        {
+            counts.Add(await db.Orders.CountAsync(o => o.Status == s));
+        }
+        StatusSeries = new[] { counts.ToArray() };
+
+        // Recent orders
+        recentOrders = await db.Orders.OrderByDescending(o => o.OrderDate).Take(8).ToListAsync();
+
+        // Top products by units & revenue over 30d
+        var top = await db.OrderProducts
+            .Where(op => db.Orders.Any(o => o.Id == op.OrderId && o.OrderDate >= since))
+            .GroupBy(op => op.ProductName)
+            .Select(g => new { Name = g.Key, Units = g.Sum(x => x.Quantity), Revenue = g.Sum(x => x.UnitPrice * x.Quantity) })
+            .OrderByDescending(x => x.Revenue)
+            .Take(10)
+            .ToListAsync();
+        topProducts = top.Select(x => (x.Name, x.Units, x.Revenue)).ToList();
+    }
+
+    private Color GetStatusColor(OrderStatus status) => status switch
+    {
+        OrderStatus.Pending => Color.Warning,
+        OrderStatus.Processing => Color.Info,
+        OrderStatus.Shipped => Color.Primary,
+        OrderStatus.Delivered => Color.Success,
+        OrderStatus.Cancelled => Color.Error,
+        _ => Color.Default,
+    };
+}

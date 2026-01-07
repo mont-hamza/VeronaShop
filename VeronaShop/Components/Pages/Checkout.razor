@@ -35,22 +35,22 @@ else
                 {
                     <div class="d-flex justify-space-between mb-2" style="width:100%">
                         <div>@it.Product.Name x @it.Quantity</div>
-                        <div>@(it.UnitPrice * it.Quantity).ToString("C")</div>
+                        <div>@(it.UnitPrice * it.Quantity):C</div>
                     </div>
                 }
             </div>
             <div class="d-flex justify-space-between mt-4">
                 <div>Subtotal</div>
-                <div>@cart.Items.Sum(i => i.UnitPrice * i.Quantity).ToString("C")</div>
+                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity)):C</div>
             </div>
             <div class="d-flex justify-space-between">
                 <div>Shipping</div>
-                <div>@(0m).ToString("C")</div>
+                <div>@(0m):C</div>
             </div>
             <hr />
             <div class="d-flex justify-space-between font-weight-bold">
                 <div>Total</div>
-                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity)).ToString("C")</div>
+                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity)):C</div>
             </div>
         </MudCardContent>
         <MudCardActions>
@@ -69,13 +69,28 @@ else
     {
         var sessionId = await CartSession.GetOrCreateSessionIdAsync();
         cart = await CartService.GetOrCreateCartAsync(sessionId);
+
+        // enforce authenticated-only access at runtime too (defense in depth)
+        var authState = await authenticationStateTask;
+        var isAuthed = authState?.User?.Identity?.IsAuthenticated == true;
+        if (!isAuthed)
+        {
+            NavigationManager.NavigateTo($"/account/login?returnUrl={Uri.EscapeDataString("/checkout")}", true);
+            return;
+        }
     }
 
     private async Task PlaceOrder()
     {
-        // Determine customer to associate with order
+        // Require authenticated user; block guests
         var authState = await authenticationStateTask;
-        var user = authState?.User?.Identity?.IsAuthenticated == true ? await UserManager.GetUserAsync(authState.User) : null;
+        if (authState?.User?.Identity?.IsAuthenticated != true)
+        {
+            Snackbar.Add("You must sign in to place an order.", Severity.Warning);
+            NavigationManager.NavigateTo($"/account/login?returnUrl={Uri.EscapeDataString("/checkout")}", true);
+            return;
+        }
+        var user = await UserManager.GetUserAsync(authState.User);
 
         using (var db = DbFactory.CreateDbContext())
         {
@@ -109,20 +124,22 @@ else
                 }
             }
 
+            // No guest checkout: ensure a customer exists for the authenticated user
             if (customer == null)
             {
-                // create a guest customer record so foreign key constraint is satisfied
+                Snackbar.Add("Your account is missing a customer profile. Creating one now.", Severity.Info);
                 customer = new VeronaShop.Data.Entites.Customer
                 {
-                    Name = "Guest",
-                    Email = $"guest-{Guid.NewGuid()}@local",
+                    Name = user.DisplayName ?? user.UserName ?? "Customer",
+                    Email = user.Email ?? string.Empty,
                     Phone = string.Empty,
                     Address = string.Empty,
                     City = string.Empty,
                     Country = string.Empty,
                     Region = string.Empty,
                     CreatedAt = DateTimeOffset.UtcNow,
-                    Status = 0
+                    Status = VeronaShop.Data.Entites.CustomerStatus.Active,
+                    IdentityUserId = user.Id
                 };
                 db.Customers.Add(customer);
                 await db.SaveChangesAsync();
