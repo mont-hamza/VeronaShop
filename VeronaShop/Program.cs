@@ -69,6 +69,7 @@ if (!string.IsNullOrEmpty(smtpHost))
 builder.Services.AddScoped<CartService>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<CartSessionService>();
+builder.Services.AddSingleton<VeronaShop.Services.OrdersPrefetchService>();
 // Background queue for long-running or non-critical tasks (email notifications)
 builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 builder.Services.AddHostedService<QueuedHostedService>();
