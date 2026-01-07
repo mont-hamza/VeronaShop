@@ -41,18 +41,27 @@
         </div>
     </div>
 
-    @if (orders == null)
+    @if (isLoading)
     {
-        <p>Loading...</p>
+        <div class="d-flex mt-6" style="justify-content:center">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Medium" />
+        </div>
     }
-    else if (!orders.Any())
+    else if (!string.IsNullOrEmpty(loadError))
+    {
+        <MudAlert Severity="Severity.Error">An error occurred loading orders: @loadError</MudAlert>
+    }
+    else if (totalOrders == 0)
     {
         <p>You have no orders yet.</p>
     }
     else
     {
+        <div class="mb-2">
+            <MudText Typo="Typo.caption">Showing page @(page+1) — @totalOrders orders</MudText>
+        </div>
         <MudGrid GutterSize="GutterSize.Small">
-            @foreach (var o in GetPagedOrders())
+            @foreach (var o in serverOrders)
             {
                 <MudItem xs="12" sm="6" md="4">
                     <MudCard Class="customer-order-card">
@@ -107,6 +116,14 @@
 @code {
     private List<Orders>? orders;
     private List<Orders> viewOrders = new();
+    private List<Orders> serverOrders = new();
+    private bool isLoading = false;
+    private int totalOrders = 0;
+    private string? loadError;
+    private bool hasProductImagesChecked = false;
+    private bool hasProductImages = false;
+    private Dictionary<int, Product> productLookup = new();
+    [Inject] private VeronaShop.Services.OrdersPrefetchService PrefetchService { get; set; }
     [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; }
     private OrderStatus? selectedStatus = null;
     private string sortBy = "date_desc";
@@ -117,18 +134,22 @@
 
     private IEnumerable<Orders> GetPagedOrders()
     {
-        RefreshView();
-        return viewOrders.Skip(page * pageSize).Take(pageSize);
+        // server-side paging uses serverOrders
+        return serverOrders;
     }
 
     private void PrevPage()
     {
+        if (page == 0) return;
         page = Math.Max(0, page - 1);
+        _ = LoadPageAsync();
     }
 
     private void NextPage()
     {
+        if ((page+1) * pageSize >= totalOrders) return;
         page = Math.Min(TotalPages - 1, page + 1);
+        _ = LoadPageAsync();
     }
 
     private string GetProductImageForOrder(Orders o)
@@ -136,20 +157,14 @@
         var first = o.OrderProducts.FirstOrDefault();
         if (first != null)
         {
-            try
+            // Use productLookup cache populated during initialization
+            if (productLookup.TryGetValue(first.ProductId, out var prod))
             {
-                using var db = DbFactory.CreateDbContext();
-                var prod = db.Products.Include(p => p.Images).FirstOrDefault(p => p.Id == first.ProductId);
-                if (prod != null)
-                {
-                    var img = prod.Images.OrderBy(i => i.SortOrder).FirstOrDefault();
-                    if (img != null) return img.Url;
-                    if (!string.IsNullOrEmpty(prod.ImageUrl)) return prod.ImageUrl;
-                }
+                var img = prod.Images?.OrderBy(i => i.SortOrder).FirstOrDefault();
+                if (img != null && !string.IsNullOrEmpty(img.Url)) return img.Url;
             }
-            catch { }
         }
-        return "images/placeholder.svg";
+        return "/images/placeholder.svg";
     }
 
     private Color GetChipColor(OrderStatus s)
@@ -189,40 +204,143 @@
         var appUser = await UserManager.GetUserAsync(user);
         if (appUser == null) return;
 
-        using var db = DbFactory.CreateDbContext();
-        orders = await db.Orders
-            .Where(o => o.Customer != null && o.Customer.IdentityUserId == appUser.Id)
-            .Include(o => o.OrderProducts)
-            .ToListAsync();
-        // initialize client-side view
-        viewOrders = orders.OrderByDescending(o => o.OrderDate).ToList();
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            // preload product and image data to avoid per-order DB calls later
+            hasProductImages = await db.TableExistsAsync("ProductImages");
+            hasProductImagesChecked = true;
+
+            // Try to find the linked customer record first (by IdentityUserId or email) to ensure we locate orders
+            var linkedCustomer = await db.Customers.FirstOrDefaultAsync(c => c.IdentityUserId == appUser.Id || c.Email == appUser.Email);
+            IQueryable<Orders> baseQuery = db.Orders.Where(o => o.Customer != null);
+            if (linkedCustomer != null)
+            {
+                baseQuery = baseQuery.Where(o => o.CustomerId == linkedCustomer.Id);
+            }
+            else
+            {
+                // fallback to matching by IdentityUserId on the joined customer if any
+                baseQuery = baseQuery.Where(o => o.Customer != null && o.Customer.IdentityUserId == appUser.Id);
+            }
+
+            // server-side paging: get total count and fetch page
+            totalOrders = await baseQuery.CountAsync();
+            var q = baseQuery.OrderByDescending(o => o.OrderDate).Skip(page * pageSize).Take(pageSize).Include(o => o.OrderProducts);
+            isLoading = true;
+            StateHasChanged();
+            var pageOrders = await q.AsSplitQuery().ToListAsync();
+            isLoading = false;
+
+            serverOrders = pageOrders;
+
+            // Load referenced products for the page
+            var productIds = serverOrders.SelectMany(o => o.OrderProducts).Select(op => op.ProductId).Distinct().ToList();
+            if (productIds.Any())
+            {
+                var prodsQuery = db.Products.Where(p => productIds.Contains(p.Id));
+                if (hasProductImages)
+                    prodsQuery = prodsQuery.Include(p => p.Images);
+
+                var prods = await prodsQuery.ToListAsync();
+                productLookup = prods.ToDictionary(p => p.Id, p => p);
+            }
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+            orders = new List<Orders>();
+        }
+
+        // initialize server-side page
+        await LoadPageAsync();
     }
 
-    private void ToggleStatusFilter(OrderStatus s)
+    private async Task ToggleStatusFilter(OrderStatus s)
     {
         if (selectedStatus == s) selectedStatus = null; else selectedStatus = s;
-        RefreshView();
+        page = 0;
+        await LoadPageAsync();
     }
 
-    private void ClearFilter()
+    private async Task ClearFilter()
     {
         selectedStatus = null;
-        RefreshView();
+        page = 0;
+        await LoadPageAsync();
     }
 
-    private void RefreshView()
+    // refresh client-side view and run a small animation
+    private bool animateGrid = false;
+    private async Task RefreshView()
     {
-        if (orders == null) return;
-        var q = orders.AsEnumerable();
-        if (selectedStatus.HasValue) q = q.Where(o => o.Status == selectedStatus.Value);
-        q = sortBy switch
+        // For server-side paging this is now a no-op; reset page and reload
+        page = 0;
+        await LoadPageAsync();
+        // trigger CSS animation class for a short time
+        animateGrid = true;
+        StateHasChanged();
+        await Task.Delay(280);
+        animateGrid = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadPageAsync()
+    {
+        var auth = await AuthenticationStateTask;
+        var user = auth.User;
+        if (user?.Identity?.IsAuthenticated != true) return;
+
+        var appUser = await UserManager.GetUserAsync(user);
+        if (appUser == null) return;
+
+        // try prefetch cache first
+        try
         {
-            "date_asc" => q.OrderBy(o => o.OrderDate),
-            "date_desc" => q.OrderByDescending(o => o.OrderDate),
-            "total_asc" => q.OrderBy(o => o.TotalAmount),
-            "total_desc" => q.OrderByDescending(o => o.TotalAmount),
-            _ => q.OrderByDescending(o => o.OrderDate),
-        };
-        viewOrders = q.ToList();
+            if (PrefetchService != null && PrefetchService.TryGetPrefetch(appUser.Id, page, pageSize, sortBy, selectedStatus, out var pOrders, out var pLookup, out var pTotal))
+            {
+                serverOrders = pOrders;
+                productLookup = pLookup.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+                totalOrders = pTotal;
+                StateHasChanged();
+                return;
+            }
+        }
+        catch { }
+
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            hasProductImages = await db.TableExistsAsync("ProductImages");
+            hasProductImagesChecked = true;
+
+            var linkedCustomer = await db.Customers.FirstOrDefaultAsync(c => c.IdentityUserId == appUser.Id || c.Email == appUser.Email);
+            IQueryable<Orders> baseQuery = db.Orders.Where(o => o.Customer != null);
+            if (linkedCustomer != null)
+                baseQuery = baseQuery.Where(o => o.CustomerId == linkedCustomer.Id);
+            else
+                baseQuery = baseQuery.Where(o => o.Customer != null && o.Customer.IdentityUserId == appUser.Id);
+
+            totalOrders = await baseQuery.CountAsync();
+            var q = baseQuery.OrderByDescending(o => o.OrderDate).Skip(page * pageSize).Take(pageSize).Include(o => o.OrderProducts);
+            isLoading = true;
+            StateHasChanged();
+            serverOrders = await q.AsSplitQuery().ToListAsync();
+            isLoading = false;
+
+            var productIds = serverOrders.SelectMany(o => o.OrderProducts).Select(op => op.ProductId).Distinct().ToList();
+            if (productIds.Any())
+            {
+                var prodsQuery = db.Products.Where(p => productIds.Contains(p.Id));
+                if (hasProductImages) prodsQuery = prodsQuery.Include(p => p.Images);
+                var prods = await prodsQuery.ToListAsync();
+                productLookup = prods.ToDictionary(p => p.Id, p => p);
+            }
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        StateHasChanged();
     }
 }

@@ -1,6 +1,7 @@
 ﻿@page "/"
 
 @using Microsoft.EntityFrameworkCore
+@using System.Linq
 @using Microsoft.EntityFrameworkCore.Infrastructure
 @using VeronaShop.Data
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
@@ -92,7 +93,8 @@
     protected override async Task OnInitializedAsync()
     {
         using var db = DbFactory.CreateDbContext();
-        carouselProducts = await db.Products.OrderByDescending(p => p.CreatedAt).Take(5).ToListAsync();
+        // include images so UI can use the canonical ProductImages table
+        carouselProducts = await db.Products.Include(p => p.Images).OrderByDescending(p => p.CreatedAt).Take(5).ToListAsync();
         promotions = new List<(string, string)>
         {
             ("Winter Sale", "Up to 50% off selected items"),

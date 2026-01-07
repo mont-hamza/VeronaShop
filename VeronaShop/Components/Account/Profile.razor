@@ -11,6 +11,7 @@
 @inject ILogger<Profile> Logger
 @inject IConfiguration Configuration
 @using MudBlazor
+@using Microsoft.AspNetCore.Components.Web
 
 <MudContainer Class="mt-6">
     <MudPaper Class="pa-4 mx-auto" Style="max-width:720px;">
@@ -74,43 +75,6 @@
             }
         </MudPaper>
 
-        <MudPaper Class="pa-4 mt-4">
-            <MudText Typo="Typo.h6">Orders</MudText>
-            @if (orders == null || !orders.Any())
-            {
-                <MudText>No orders found.</MudText>
-            }
-            else
-            {
-                <MudTable Items="orders" Dense="true" Hover="true" Class="mt-2">
-                    <HeaderContent>
-                        <MudTh>Order #</MudTh>
-                        <MudTh>Date</MudTh>
-                        <MudTh>Total</MudTh>
-                        <MudTh>Status</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@context.OrderNumber</MudTd>
-                        <MudTd>@context.OrderDate.ToString("g")</MudTd>
-                        <MudTd>@context.TotalAmount.ToString("C")</MudTd>
-                        <MudTd>@context.Status.ToString()</MudTd>
-                    </RowTemplate>
-                </MudTable>
-
-                @foreach (var o in orders)
-                {
-                    <MudPaper Class="pa-3 mt-2">
-                        <MudText Typo="Typo.subtitle1">Items for @o.OrderNumber</MudText>
-                        <MudList T="string">
-                            @foreach (var line in o.OrderProducts)
-                            {
-                                <MudListItem T="string">@line.ProductName — @line.Quantity × @line.UnitPrice.ToString("C") = @line.LineTotal.ToString("C")</MudListItem>
-                            }
-                        </MudList>
-                    </MudPaper>
-                }
-            }
-        </MudPaper>
         
     </MudPaper>
 </MudContainer>
@@ -353,5 +317,37 @@
     private void CancelEditCustomer()
     {
         editingCustomer = false;
+    }
+
+    [Inject] private VeronaShop.Services.OrdersPrefetchService PrefetchService { get; set; }
+
+    private async Task OnOpenOrdersClicked()
+    {
+        try
+        {
+            // prefetch first page (page 0) for the current user
+            if (user != null)
+            {
+                await PrefetchService.PrefetchAsync(user.Id, 0, 6, "date_desc", null);
+            }
+        }
+        catch { }
+        Navigation.NavigateTo("/account/orders");
+    }
+    private DateTimeOffset _lastPrefetch = DateTimeOffset.MinValue;
+    private readonly TimeSpan _prefetchCooldown = TimeSpan.FromSeconds(30);
+
+    private async Task OnOrdersHover(MouseEventArgs e)
+    {
+        try
+        {
+            if (user == null) return;
+            var now = DateTimeOffset.UtcNow;
+            if (now - _lastPrefetch < _prefetchCooldown) return;
+            _lastPrefetch = now;
+            // fire-and-forget prefetch
+            _ = PrefetchService.PrefetchAsync(user.Id, 0, 6, "date_desc", null);
+        }
+        catch { }
     }
 }

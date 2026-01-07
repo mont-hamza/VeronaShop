@@ -24,12 +24,17 @@
         <div><strong>Total:</strong> @order.TotalAmount.ToString("C")</div>
 
         <h4>Items</h4>
-        <ul>
+        <div class="order-thumbs">
             @foreach (var it in order.OrderProducts)
             {
-                <li>@it.ProductName x @it.Quantity (@it.UnitPrice.ToString("C"))</li>
+                var imgUrl = it.Product?.Images?.OrderBy(i => i.SortOrder).FirstOrDefault()?.Url ?? it.Product?.ImageUrl ?? "/images/placeholder.svg";
+                <div>
+                    <img class="order-thumb" src="@imgUrl" />
+                    <div style="max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.9rem">@it.ProductName</div>
+                    <div class="muted">@it.Quantity x @it.UnitPrice.ToString("C")</div>
+                </div>
             }
-        </ul>
+        </div>
 
         <div style="margin-top:12px">
             <button class="mud-button-root mud-button" @onclick="PrintInvoice">Print</button>
@@ -61,7 +66,7 @@
         if (user?.Identity?.IsAuthenticated != true) return;
 
         using var db = DbFactory.CreateDbContext();
-        order = await db.Orders.Include(o => o.OrderProducts).FirstOrDefaultAsync(o => o.Id == orderId);
+        order = await db.Orders.Include(o => o.OrderProducts).ThenInclude(op => op.Product).ThenInclude(p => p.Images).FirstOrDefaultAsync(o => o.Id == orderId);
         if (order == null)
         {
             Navigation.NavigateTo("/account/orders");

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace VeronaShop.Data.Entites
 {
@@ -31,11 +32,29 @@ namespace VeronaShop.Data.Entites
 
         public bool IsPublished { get; set; } = true;
 
-        // legacy single-image property (kept for compatibility)
-        public string ImageUrl { get; set; } = string.Empty;
-
-        // multiple images
+        // multiple images (primary image is the first by SortOrder)
         public virtual ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
+
+        // Compatibility property: maps to first ProductImage in the collection.
+        // Not mapped so the schema is driven by ProductImages table.
+        [NotMapped]
+        public string? ImageUrl
+        {
+            get => Images?.OrderBy(i => i.SortOrder).FirstOrDefault()?.Url ?? null;
+            set
+            {
+                if (value == null) return;
+                var first = Images?.OrderBy(i => i.SortOrder).FirstOrDefault();
+                if (first != null)
+                {
+                    first.Url = value;
+                }
+                else
+                {
+                    Images.Add(new ProductImage { Url = value, SortOrder = 0, CreatedAt = DateTimeOffset.UtcNow });
+                }
+            }
+        }
 
         // Relations
         public int? SupplierId { get; set; }

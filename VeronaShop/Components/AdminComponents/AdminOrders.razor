@@ -4,6 +4,7 @@
 @using VeronaShop.Data
 @using VeronaShop.Data.Entites
 @using MudBlazor
+@using Microsoft.AspNetCore.Components.Web
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject ISnackbar Snackbar
 @attribute [Authorize(Roles = "Admin")]
@@ -12,24 +13,8 @@
 <h3>Manage Orders</h3>
 
 <MudPaper Class="pa-4">
-    <div class="status-legend">
-        <div class="legend-item"><span class="legend-chip" style="background:#ffb545"></span> Pending</div>
-        <div class="legend-item"><span class="legend-chip" style="background:#4a86ff"></span> Processing</div>
-        <div class="legend-item"><span class="legend-chip" style="background:#7e6fff"></span> Shipped</div>
-        <div class="legend-item"><span class="legend-chip" style="background:#3dcb6c"></span> Delivered</div>
-        <div class="legend-item"><span class="legend-chip" style="background:#ff3f5f"></span> Cancelled</div>
-        <div style="margin-left:auto" class="bulk-actions">
-            <MudCheckBox T="bool" Checked="selectAll" CheckedChanged="@( (bool v) => ToggleSelectAll(v) )" Label="Select all on page" />
-            <MudSelect T="VeronaShop.Data.Entites.OrderStatus" Value="bulkStatus" ValueChanged="@( (VeronaShop.Data.Entites.OrderStatus s) => bulkStatus = s)" Dense="true" Style="min-width:160px">
-                @foreach (var s in Enum.GetValues(typeof(VeronaShop.Data.Entites.OrderStatus)))
-                {
-                    <MudSelectItem Value="@( (VeronaShop.Data.Entites.OrderStatus)s )">@s</MudSelectItem>
-                }
-            </MudSelect>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await ApplyBulkStatus())">Apply to selected</MudButton>
-        </div>
-    </div>
-    <div class="d-flex gap-3 align-center mb-3">
+    @* Status legend removed to reduce clutter *@
+    <div class="d-flex gap-3 align-center mb-3 wrap-on-mobile" style="flex-wrap:wrap">
         <MudTextField @bind-Value="searchTerm" Placeholder="Search order # or customer" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" OnImmediateValueChanged="OnSearchChanged" />
 
         <MudSelect T="VeronaShop.Data.Entites.OrderStatus?" Value="statusFilter" Placeholder="All statuses" Dense="true" Style="min-width:200px" ValueChanged="@(async (VeronaShop.Data.Entites.OrderStatus? v) => { statusFilter = v; page = 0; await LoadOrdersAsync(); })">
@@ -42,7 +27,7 @@
 
         <MudDatePicker @bind-Date="dateFrom" Label="From" Clearable="true" />
         <MudDatePicker @bind-Date="dateTo" Label="To" Clearable="true" />
-        <MudButton Variant="Variant.Text" OnClick="@(async () => { page = 0; await LoadOrdersAsync(); })">Apply</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(async (MouseEventArgs e) => await ApplyFilters(e))">Apply</MudButton>
 
         <MudSpacer />
 
@@ -78,7 +63,7 @@
                                     <MudText Typo="Typo.h6">@o.OrderNumber</MudText>
                                     <MudText Typo="Typo.caption">@o.OrderDate.ToString("g")</MudText>
                                 </div>
-                                <div class="d-flex" style="gap:8px;align-items:center;">
+                            <div class="d-flex admin-order-actions" style="gap:8px;align-items:center;">
                                     <MudChip T="string" Color="@(GetStatusColor(o.Status))" Variant="Variant.Filled">@o.Status.ToString()</MudChip>
                                     @if (o.IsPaid)
                                     {
@@ -98,13 +83,15 @@
                                 <div>
                                     <MudText Typo="Typo.subtitle1">@o.TotalAmount.ToString("C")</MudText>
                                 </div>
-                                <div class="d-flex" style="gap:8px;">
-                                    <MudCheckBox T="bool" Checked="@( selectedIdsMap.ContainsKey(o.Id) ? selectedIdsMap[o.Id] : false )" CheckedChanged="@( (bool v) => selectedIdsMap[o.Id] = v )" />
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@( () => ShowDetails(o.Id) )">Details</MudButton>
-                                    <MudMenu Icon="Icons.Material.Filled.MoreVert">
-                                        <MudMenuItem OnClick="@( async () => await ChangeStatus(o.Id, OrderStatus.Processing) )">Mark Processing</MudMenuItem>
-                                        <MudMenuItem OnClick="@( async () => await ChangeStatus(o.Id, OrderStatus.Shipped) )">Mark Shipped</MudMenuItem>
-                                        <MudMenuItem OnClick="@( async () => await ChangeStatus(o.Id, OrderStatus.Delivered) )">Mark Delivered</MudMenuItem>
+                                <div class="d-flex order-action-compact" style="gap:8px;align-items:center;">
+                                    <MudMenu Icon="@Icons.Material.Filled.Edit" Size="Size.Medium" Color="Color.Primary" Variant="Variant.Filled">
+                                        <MudMenuItem OnClick="@( () => ShowDetails(o.Id) )">Details</MudMenuItem>
+                                        <MudDivider />
+                                        @foreach (var sOpt in Enum.GetValues(typeof(OrderStatus)).Cast<OrderStatus>())
+                                        {
+                                            <MudMenuItem OnClick="@( async () => await QuickChangeStatus(o.Id, sOpt) )">@sOpt</MudMenuItem>
+                                        }
+                                        
                                     </MudMenu>
                                 </div>
                             </div>
@@ -176,54 +163,18 @@
 
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
 
-    // selection and bulk
-    private bool selectAll = false;
-    private VeronaShop.Data.Entites.OrderStatus bulkStatus = OrderStatus.Processing;
+    // recent highlight tracking
     private HashSet<int> recentlyChangedIds = new();
-    private Dictionary<int, bool> selectedIdsMap = new();
-
-    private async Task ToggleSelectAll(bool v)
-    {
-        selectAll = v;
-        selectedIdsMap.Clear();
-        if (v && orders != null)
-        {
-            foreach (var o in orders) selectedIdsMap[o.Id] = true;
-        }
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task ApplyBulkStatus()
-    {
-        var ids = selectedIdsMap.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
-        if (!ids.Any()) { Snackbar.Add("No orders selected", Severity.Warning); return; }
-        try
-        {
-            using var db = DbFactory.CreateDbContext();
-            var rows = await db.Orders.Where(o => ids.Contains(o.Id)).ToListAsync();
-            foreach (var r in rows)
-            {
-                r.Status = bulkStatus;
-                r.UpdatedAt = DateTimeOffset.UtcNow;
-                recentlyChangedIds.Add(r.Id);
-            }
-            await db.SaveChangesAsync();
-            Snackbar.Add($"Updated {rows.Count} orders", Severity.Success);
-            await LoadOrdersAsync();
-            // clear map
-            selectedIdsMap.Clear();
-            selectAll = false;
-            // remove highlight after short delay
-            _ = Task.Run(async () => { await Task.Delay(1400); recentlyChangedIds.Clear(); await InvokeAsync(StateHasChanged); });
-        }
-        catch
-        {
-            Snackbar.Add("Bulk update failed", Severity.Error);
-        }
-    }
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadOrdersAsync();
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        searchTerm = value;
+        page = 0;
         await LoadOrdersAsync();
     }
 
@@ -294,7 +245,7 @@
         }
     }
 
-    private async Task ApplyFilters()
+    private async Task ApplyFilters(MouseEventArgs e)
     {
         page = 0;
         await LoadOrdersAsync();
@@ -335,5 +286,41 @@
             OrderStatus.Cancelled => Color.Error,
             _ => Color.Default,
         };
+    }
+
+    
+
+    private async Task QuickChangeStatus(int orderId, OrderStatus status)
+    {
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            var o = await db.Orders.FindAsync(orderId);
+            if (o == null) { Snackbar.Add("Order not found", Severity.Warning); return; }
+            o.Status = status;
+            o.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            // update UI immediately
+            var mem = orders?.FirstOrDefault(x => x.Id == orderId);
+            if (mem != null)
+            {
+                mem.Status = status;
+                mem.UpdatedAt = o.UpdatedAt;
+            }
+            if (selectedOrder != null && selectedOrder.Id == orderId)
+            {
+                selectedOrder.Status = status;
+                selectedOrder.UpdatedAt = o.UpdatedAt;
+            }
+            recentlyChangedIds.Add(orderId);
+            Snackbar.Add($"Order {o.OrderNumber} status updated to {status}", Severity.Success);
+            _ = Task.Run(async () => { await Task.Delay(1400); recentlyChangedIds.Remove(orderId); await InvokeAsync(StateHasChanged); });
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            Snackbar.Add("Failed to update status", Severity.Error);
+        }
     }
 }
