@@ -9,7 +9,7 @@
 @inject VeronaShop.Services.IEmailSender EmailSender
 @inject NavigationManager NavigationManager
 @inject VeronaShop.Services.CartSessionService CartSession
-@inject Microsoft.AspNetCore.Identity.UserManager<VeronaShop.Data.Entites.ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager
 @inject ISnackbar Snackbar
 @inject VeronaShop.Services.IBackgroundTaskQueue TaskQueue
 @using System.Linq
@@ -215,7 +215,7 @@ else
                     try
                     {
                         using var scope = services.CreateScope();
-                        var scopedUserMgr = scope.ServiceProvider.GetService<Microsoft.AspNetCore.Identity.UserManager<VeronaShop.Data.Entites.ApplicationUser>>();
+                        var scopedUserMgr = scope.ServiceProvider.GetService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
                         var scopedEmail = scope.ServiceProvider.GetService<IEmailSender>();
                         var dbFactory = scope.ServiceProvider.GetService<Microsoft.EntityFrameworkCore.IDbContextFactory<VeronaShop.Data.ApplicationDbContext>>();
                         var hubContext = scope.ServiceProvider.GetService<Microsoft.AspNetCore.SignalR.IHubContext<VeronaShop.Services.NotificationHub>>();

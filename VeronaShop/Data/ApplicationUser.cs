@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 
-namespace VeronaShop.Data.Entites
+namespace VeronaShop.Data
 {
     /// <summary>
     /// Application user extending IdentityUser with additional profile fields.

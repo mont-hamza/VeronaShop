@@ -109,6 +109,7 @@
 
     [Inject] private IDbContextFactory<ApplicationDbContext> DbFactory { get; set; }
     [Inject] private ILogger<Products> Logger { get; set; }
+    [Inject] private NavigationManager Nav { get; set; }
 
     [Inject] IDialogService DialogService { get; set; }
     [Inject] ISnackbar Snackbar { get; set; }
@@ -116,6 +117,22 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadProducts();
+        // if navigated with ?edit={id} from shop, open editor immediately
+        try
+        {
+            var uri = new Uri(Nav.Uri);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var editVal = query.Get("edit");
+            if (!string.IsNullOrEmpty(editVal) && int.TryParse(editVal, out var editId))
+            {
+                var toEdit = products.FirstOrDefault(p => p.Id == editId);
+                if (toEdit != null)
+                {
+                    Edit(toEdit);
+                }
+            }
+        }
+        catch { }
     }
 
     private async Task LoadProducts()

@@ -1,8 +1,9 @@
 @page "/admin/users"
-@using VeronaShop.Data.Entites
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using MudBlazor
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
 @inject UserManager<ApplicationUser> UserManager
 @inject RoleManager<IdentityRole<int>> RoleManager
 @inject ISnackbar Snackbar

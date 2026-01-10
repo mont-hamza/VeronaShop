@@ -1,0 +1,73 @@
+@page "/admin/deliveries"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+
+<MudPaper Class="pa-4">
+    <h3>Assign Carrier</h3>
+    <MudSelect T="int" Label="Carrier" @bind-Value="selectedCarrierId" Dense="true" Style="min-width:280px">
+        @foreach (var c in carriers)
+        {
+            <MudSelectItem T="int" Value="@c.Id">@c.Name (@c.Phone)</MudSelectItem>
+        }
+    </MudSelect>
+    <MudTextField Label="Tracking number" @bind-Value="tracking" Class="mt-2" />
+    <div class="mt-3">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(selectedCarrierId==0)" OnClick="Assign">Assign</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+    </div>
+</MudPaper>
+
+@code {
+    [Inject] IDbContextFactory<ApplicationDbContext> DbFactory { get; set; }
+    [Inject] NavigationManager Nav { get; set; }
+    [Inject] ISnackbar Snackbar { get; set; }
+
+    private List<Carrier> carriers = new();
+    private int selectedCarrierId;
+    private string tracking = string.Empty;
+    private int orderId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(Nav.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        orderId = int.TryParse(query.Get("orderId"), out var id) ? id : 0;
+        using var db = DbFactory.CreateDbContext();
+        carriers = await db.Carriers.Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
+    }
+
+    private async Task Assign()
+    {
+        using var db = DbFactory.CreateDbContext();
+        // Validate order exists to satisfy FK
+        var order = await db.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == orderId);
+        if (order == null)
+        {
+            Snackbar.Add("Order not found. Cannot assign carrier.", Severity.Error);
+            return;
+        }
+        var delivery = await db.Deliveries.FirstOrDefaultAsync(d => d.OrderId == orderId);
+        if (delivery == null)
+        {
+            delivery = new Delivery { OrderId = orderId };
+            db.Deliveries.Add(delivery);
+        }
+        delivery.CarrierId = selectedCarrierId;
+        delivery.TrackingNumber = tracking ?? string.Empty;
+        delivery.Status = DeliveryStatus.InTransit;
+        // when marked delivered in UI elsewhere, update to Delivered
+        await db.SaveChangesAsync();
+        Snackbar.Add("Carrier assigned", Severity.Success);
+        Nav.NavigateTo("/admin/orders");
+    }
+
+    private void Cancel()
+    {
+        Nav.NavigateTo("/admin/orders");
+    }
+}

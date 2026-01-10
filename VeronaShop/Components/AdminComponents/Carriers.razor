@@ -1,0 +1,134 @@
+@page "/admin/carriers"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+
+<MudPaper Class="pa-4">
+    <div class="d-flex justify-space-between align-center">
+        <h3>Manage Carriers</h3>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNew">Add carrier</MudButton>
+    </div>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <MudAlert Severity="Severity.Success" Elevation="0">@message</MudAlert>
+    }
+
+    @if (editing != null)
+    {
+        <MudPaper Class="pa-3 mt-3">
+            <EditForm Model="editing" OnValidSubmit="Save">
+                <DataAnnotationsValidator />
+                <MudTextField @bind-Value="editing.Name" Label="Name" Required="true" />
+                <MudTextField @bind-Value="editing.Phone" Label="Phone" />
+                <MudCheckBox T="bool" @bind-Checked="editing.IsActive">Active</MudCheckBox>
+                <div class="mt-2">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                    <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+                </div>
+            </EditForm>
+        </MudPaper>
+    }
+
+    <MudTable T="Carrier" Items="carriers" Dense="true" Hover="true" Class="mt-3">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Phone</MudTh>
+            <MudTh>Active</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            <MudTd>@context.Phone</MudTd>
+            <MudTd>@(context.IsActive ? "Yes" : "No")</MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => Edit(context))">Edit</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => PromptDelete(context))">Delete</MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private List<Carrier> carriers = new();
+    private Carrier editing = null;
+    private Carrier toDelete = null;
+    private string message;
+
+    [Inject] private IDbContextFactory<ApplicationDbContext> DbFactory { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        using var db = DbFactory.CreateDbContext();
+        carriers = await db.Carriers.OrderBy(c => c.Name).ToListAsync();
+    }
+
+    private void CreateNew()
+    {
+        editing = new Carrier { Name = string.Empty, Phone = string.Empty, IsActive = true };
+    }
+
+    private void Edit(Carrier c)
+    {
+        editing = new Carrier { Id = c.Id, Name = c.Name, Phone = c.Phone, IsActive = c.IsActive };
+    }
+
+    private void Cancel()
+    {
+        editing = null;
+    }
+
+    private async Task Save()
+    {
+        using var db = DbFactory.CreateDbContext();
+        if (editing.Id == 0)
+        {
+            db.Carriers.Add(editing);
+        }
+        else
+        {
+            var existing = await db.Carriers.FindAsync(editing.Id);
+            if (existing != null)
+            {
+                existing.Name = editing.Name;
+                existing.Phone = editing.Phone;
+                existing.IsActive = editing.IsActive;
+            }
+        }
+        await db.SaveChangesAsync();
+        editing = null;
+        message = "Carrier saved.";
+        await LoadAsync();
+    }
+
+    private void PromptDelete(Carrier c)
+    {
+        toDelete = c;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (toDelete != null)
+        {
+            using var db = DbFactory.CreateDbContext();
+            var existing = await db.Carriers.FindAsync(toDelete.Id);
+            if (existing != null)
+            {
+                db.Carriers.Remove(existing);
+                await db.SaveChangesAsync();
+                message = "Carrier deleted.";
+            }
+            toDelete = null;
+            await LoadAsync();
+        }
+    }
+}

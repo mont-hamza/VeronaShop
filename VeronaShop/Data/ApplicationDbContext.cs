@@ -17,6 +17,7 @@ namespace VeronaShop.Data
         public DbSet<Orders> Orders { get; set; }
         public DbSet<OrderProduct> OrderProducts { get; set; }
         public DbSet<Delivery> Deliveries { get; set; }
+        public DbSet<Carrier> Carriers { get; set; }
         public DbSet<AdminProfile> AdminProfiles { get; set; }
         public DbSet<Cart> Carts { get; set; }
         public DbSet<CartItem> CartItems { get; set; }

@@ -113,7 +113,7 @@
         try { Logger.LogInformation("HandleRegister invoked for {User}", registerModel?.UserName); } catch { }
         statusMessage = "Submitting registration...";
         StateHasChanged();
-        var user = new VeronaShop.Data.Entites.ApplicationUser
+        var user = new VeronaShop.Data.ApplicationUser
         {
             UserName = registerModel.UserName,
             Email = registerModel.Email,

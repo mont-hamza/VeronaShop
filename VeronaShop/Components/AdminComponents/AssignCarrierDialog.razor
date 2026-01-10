@@ -1,0 +1,62 @@
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@using MudBlazor
+@using Microsoft.EntityFrameworkCore
+
+<MudDialogContent>
+    <MudSelect T="int" Label="Carrier" @bind-Value="selectedCarrierId" Dense="true">
+        @foreach (var c in carriers)
+        {
+            <MudSelectItem T="int" Value="@c.Id">@c.Name (@c.Phone)</MudSelectItem>
+        }
+    </MudSelect>
+    <MudTextField Label="Tracking number" @bind-Value="tracking" />
+</MudDialogContent>
+<MudDialogActions>
+    <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Ok" Disabled="@(selectedCarrierId == 0)">Assign</MudButton>
+</MudDialogActions>
+
+@code {
+    [Parameter] public int OrderId { get; set; }
+    [CascadingParameter] object DialogRef { get; set; }
+    [Inject] IDbContextFactory<ApplicationDbContext> DbFactory { get; set; }
+
+    private List<Carrier> carriers = new();
+    private int selectedCarrierId;
+    private string tracking = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var db = DbFactory.CreateDbContext();
+        carriers = await db.Carriers.Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
+    }
+
+    void Cancel()
+    {
+        try { ((dynamic)DialogRef)?.Close(DialogResult.Cancel()); } catch { }
+    }
+
+    async void Ok()
+    {
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            var delivery = await db.Deliveries.FirstOrDefaultAsync(d => d.OrderId == OrderId);
+            if (delivery == null)
+            {
+                delivery = new Delivery { OrderId = OrderId };
+                db.Deliveries.Add(delivery);
+            }
+            delivery.CarrierId = selectedCarrierId;
+            delivery.TrackingNumber = tracking ?? string.Empty;
+            delivery.Status = DeliveryStatus.InTransit;
+            await db.SaveChangesAsync();
+            ((dynamic)DialogRef)?.Close(DialogResult.Ok(true));
+        }
+        catch
+        {
+            ((dynamic)DialogRef)?.Close(DialogResult.Cancel());
+        }
+    }
+}

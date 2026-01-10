@@ -77,6 +77,10 @@
                             <div>
                                 <MudText>@o.Customer?.Name</MudText>
                                 <MudText Typo="Typo.caption">@o.Customer?.Email</MudText>
+                                @if (TryGetDelivery(o.Id, out var del))
+                                {
+                                    <MudText Typo="Typo.caption">Carrier: @del.CarrierName — @del.Tracking</MudText>
+                                }
                             </div>
 
                             <div class="d-flex justify-space-between align-center mt-2">
@@ -90,6 +94,11 @@
                                         @foreach (var sOpt in Enum.GetValues(typeof(OrderStatus)).Cast<OrderStatus>())
                                         {
                                             <MudMenuItem OnClick="@( async () => await QuickChangeStatus(o.Id, sOpt) )">@sOpt</MudMenuItem>
+                                        }
+                                        @if (o.Status == OrderStatus.Shipped)
+                                        {
+                                            <MudDivider />
+                                            <MudMenuItem Href="@($"/admin/deliveries?orderId={o.Id}")">Assign carrier</MudMenuItem>
                                         }
                                         
                                     </MudMenu>
@@ -203,6 +212,26 @@
             .Skip(page * pageSize)
             .Take(pageSize)
             .ToListAsync();
+    }
+
+    // lightweight cache of deliveries to render per card without joins
+    private Dictionary<int,(string CarrierName,string Tracking)> deliveries = new();
+    private bool TryGetDelivery(int orderId, out (string CarrierName,string Tracking) d)
+    {
+        if (deliveries.TryGetValue(orderId, out d)) return true;
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            var del = db.Deliveries.Include(x=>x.Carrier).AsNoTracking().FirstOrDefault(x=>x.OrderId==orderId);
+            if (del != null)
+            {
+                var val = (del.Carrier?.Name ?? "", del.TrackingNumber ?? "");
+                deliveries[orderId] = val;
+                d = val; return true;
+            }
+        }
+        catch { }
+        d = default; return false;
     }
 
     private async Task ShowDetails(int orderId)

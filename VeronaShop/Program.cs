@@ -125,6 +125,25 @@ END";
 
         try { db.Database.ExecuteSqlRaw(ensureSql); } catch { }
         // Notification views are tracked in NotificationViews table per admin; migrations should create that table.
+
+        // Ensure Carriers table exists (best-effort) for delivery assignments
+        var ensureCarriers = @"IF NOT EXISTS (SELECT * FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id WHERE t.name = 'Carriers' AND s.name = 'dbo')
+BEGIN
+    CREATE TABLE [dbo].[Carriers](
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [Name] NVARCHAR(200) NOT NULL,
+        [Phone] NVARCHAR(100) NULL,
+        [IsActive] BIT NOT NULL CONSTRAINT DF_Carriers_IsActive DEFAULT(1)
+    );
+END";
+        try { db.Database.ExecuteSqlRaw(ensureCarriers); } catch { }
+
+        // Ensure Deliveries has CarrierId column for relationship to Carriers (keep old columns intact)
+        var ensureCarrierIdOnDeliveries = @"IF COL_LENGTH('dbo.Deliveries', 'CarrierId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Deliveries] ADD [CarrierId] INT NULL;
+END";
+        try { db.Database.ExecuteSqlRaw(ensureCarrierIdOnDeliveries); } catch { }
     }
     catch { }
 

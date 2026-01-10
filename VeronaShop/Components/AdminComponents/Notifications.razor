@@ -1,7 +1,8 @@
 @page "/admin/notifications"
-@using VeronaShop.Data.Entites
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.EntityFrameworkCore.Infrastructure
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
 @inject IDbContextFactory<VeronaShop.Data.ApplicationDbContext> DbFactory
 @using MudBlazor
 @using System.Linq
@@ -46,7 +47,7 @@ else
     private List<Notification> notifications;
     [Inject] private Microsoft.AspNetCore.SignalR.IHubContext<VeronaShop.Services.NotificationHub> HubContext { get; set; }
     [Inject] private IDbContextFactory<VeronaShop.Data.ApplicationDbContext> DbFactory2 { get; set; }
-    [Inject] private Microsoft.AspNetCore.Identity.UserManager<VeronaShop.Data.Entites.ApplicationUser> UserManager { get; set; }
+    [Inject] private Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager { get; set; }
     [CascadingParameter] private System.Threading.Tasks.Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> AuthenticationStateTask { get; set; }
 
     protected override async Task OnInitializedAsync()
