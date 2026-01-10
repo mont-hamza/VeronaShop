@@ -40,5 +40,8 @@ namespace VeronaShop.Data.Entites
         [MaxLength(100)]
         public string Phone { get; set; } = string.Empty;
         public bool IsActive { get; set; } = true;
+        // Optional daily working hours (local time)
+        public TimeSpan? DailyStart { get; set; }
+        public TimeSpan? DailyEnd { get; set; }
     }
 }

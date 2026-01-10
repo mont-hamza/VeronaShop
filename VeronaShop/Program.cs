@@ -144,6 +144,11 @@ BEGIN
     ALTER TABLE [dbo].[Deliveries] ADD [CarrierId] INT NULL;
 END";
         try { db.Database.ExecuteSqlRaw(ensureCarrierIdOnDeliveries); } catch { }
+
+        // Add working hours columns to Carriers if missing
+        var ensureCarrierHours = @"IF COL_LENGTH('dbo.Carriers','DailyStart') IS NULL ALTER TABLE dbo.Carriers ADD DailyStart time NULL;
+IF COL_LENGTH('dbo.Carriers','DailyEnd') IS NULL ALTER TABLE dbo.Carriers ADD DailyEnd time NULL;";
+        try { db.Database.ExecuteSqlRaw(ensureCarrierHours); } catch { }
     }
     catch { }
 

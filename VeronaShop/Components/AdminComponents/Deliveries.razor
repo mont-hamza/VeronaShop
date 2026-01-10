@@ -9,7 +9,13 @@
 
 <MudPaper Class="pa-4">
     <h3>Assign Carrier</h3>
-    <MudSelect T="int" Label="Carrier" @bind-Value="selectedCarrierId" Dense="true" Style="min-width:280px">
+    <MudSelect T="int" Label="Order" @bind-Value="selectedOrderId" Dense="true" Style="min-width:320px">
+        @foreach (var o in shippedOrders)
+        {
+            <MudSelectItem T="int" Value="@o.Id">@o.OrderNumber (@o.Customer?.Name) — @o.OrderDate.ToString("g")</MudSelectItem>
+        }
+    </MudSelect>
+    <MudSelect T="int" Label="Carrier" @bind-Value="selectedCarrierId" Dense="true" Style="min-width:280px" Class="mt-2">
         @foreach (var c in carriers)
         {
             <MudSelectItem T="int" Value="@c.Id">@c.Name (@c.Phone)</MudSelectItem>
@@ -17,7 +23,7 @@
     </MudSelect>
     <MudTextField Label="Tracking number" @bind-Value="tracking" Class="mt-2" />
     <div class="mt-3">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(selectedCarrierId==0)" OnClick="Assign">Assign</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(selectedCarrierId==0 || selectedOrderId==0)" OnClick="Assign">Assign</MudButton>
         <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
     </div>
 </MudPaper>
@@ -28,33 +34,42 @@
     [Inject] ISnackbar Snackbar { get; set; }
 
     private List<Carrier> carriers = new();
+    private List<Orders> shippedOrders = new();
     private int selectedCarrierId;
     private string tracking = string.Empty;
-    private int orderId;
+    private int selectedOrderId;
 
     protected override async Task OnInitializedAsync()
     {
-        var uri = new Uri(Nav.Uri);
-        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        orderId = int.TryParse(query.Get("orderId"), out var id) ? id : 0;
         using var db = DbFactory.CreateDbContext();
         carriers = await db.Carriers.Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
+        shippedOrders = await db.Orders.Include(o=>o.Customer).Where(o => o.Status == OrderStatus.Shipped).OrderByDescending(o=>o.OrderDate).Take(200).ToListAsync();
+        // Preselect order from query if provided
+        try
+        {
+            var uri = new Uri(Nav.Uri);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var orderId = int.TryParse(query.Get("orderId"), out var id) ? id : 0;
+            if (orderId != 0 && shippedOrders.Any(o=>o.Id==orderId))
+                selectedOrderId = orderId;
+        }
+        catch { }
     }
 
     private async Task Assign()
     {
         using var db = DbFactory.CreateDbContext();
         // Validate order exists to satisfy FK
-        var order = await db.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == orderId);
+        var order = await db.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == selectedOrderId);
         if (order == null)
         {
             Snackbar.Add("Order not found. Cannot assign carrier.", Severity.Error);
             return;
         }
-        var delivery = await db.Deliveries.FirstOrDefaultAsync(d => d.OrderId == orderId);
+        var delivery = await db.Deliveries.FirstOrDefaultAsync(d => d.OrderId == selectedOrderId);
         if (delivery == null)
         {
-            delivery = new Delivery { OrderId = orderId };
+            delivery = new Delivery { OrderId = selectedOrderId };
             db.Deliveries.Add(delivery);
         }
         delivery.CarrierId = selectedCarrierId;
@@ -63,6 +78,7 @@
         // when marked delivered in UI elsewhere, update to Delivered
         await db.SaveChangesAsync();
         Snackbar.Add("Carrier assigned", Severity.Success);
+        // notify Orders page via navigation and refresh
         Nav.NavigateTo("/admin/orders");
     }
 

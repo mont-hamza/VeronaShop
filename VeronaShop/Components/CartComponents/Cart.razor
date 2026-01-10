@@ -32,11 +32,11 @@ else
         <RowTemplate>
             <MudTd><img src="@(string.IsNullOrEmpty(context.Product.ImageUrl) ? "images/placeholder.svg" : context.Product.ImageUrl)" style="width:60px;height:60px;object-fit:cover" /></MudTd>
             <MudTd><a href="/product/@context.ProductId">@context.Product.Name</a></MudTd>
-            <MudTd>@(context.UnitPrice):C</MudTd>
+            <MudTd>@(context.UnitPrice)</MudTd>
             <MudTd>
                 <MudNumericField T="int" @bind-Value="context.Quantity" Min="1" Immediate="true" OnBlur="@(async () => await UpdateQuantity(context.Id, context.Quantity))" />
             </MudTd>
-            <MudTd>@(context.UnitPrice * context.Quantity):C</MudTd>
+            <MudTd>@(context.UnitPrice * context.Quantity)</MudTd>
             <MudTd>
                 <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="@(async ()=> await Remove(context.Id))">Remove</MudButton>
             </MudTd>
@@ -47,16 +47,16 @@ else
         <MudPaper Class="pa-4" Style="min-width:320px;">
             <div class="d-flex justify-space-between">
                 <div>Subtotal</div>
-                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity)):C</div>
+                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity))</div>
             </div>
             <div class="d-flex justify-space-between mt-2">
                 <div>Shipping</div>
-                <div>@(0m):C</div>
+                <div>@(0m)</div>
             </div>
             <hr />
             <div class="d-flex justify-space-between font-weight-bold">
                 <div>Total</div>
-                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity)):C</div>
+                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity))</div>
             </div>
 
             @if (isAuthenticated)

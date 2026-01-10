@@ -35,22 +35,22 @@ else
                 {
                     <div class="d-flex justify-space-between mb-2" style="width:100%">
                         <div>@it.Product.Name x @it.Quantity</div>
-                        <div>@(it.UnitPrice * it.Quantity):C</div>
+                        <div>@(it.UnitPrice * it.Quantity)</div>
                     </div>
                 }
             </div>
             <div class="d-flex justify-space-between mt-4">
                 <div>Subtotal</div>
-                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity)):C</div>
+                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity))</div>
             </div>
             <div class="d-flex justify-space-between">
                 <div>Shipping</div>
-                <div>@(0m):C</div>
+                <div>@(0m)</div>
             </div>
             <hr />
             <div class="d-flex justify-space-between font-weight-bold">
                 <div>Total</div>
-                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity)):C</div>
+                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity))</div>
             </div>
         </MudCardContent>
         <MudCardActions>

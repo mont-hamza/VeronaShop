@@ -5,6 +5,7 @@
 @using VeronaShop.Data.Entites
 @using MudBlazor
 @using Microsoft.AspNetCore.Components.Web
+@using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject ISnackbar Snackbar
 @attribute [Authorize(Roles = "Admin")]
@@ -99,6 +100,20 @@
                                         {
                                             <MudDivider />
                                             <MudMenuItem Href="@($"/admin/deliveries?orderId={o.Id}")">Assign carrier</MudMenuItem>
+                                            @if (quickAssignCarriers != null && quickAssignCarriers.Any())
+                                            {
+                                                <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                                    <ActivatorContent>
+                                                        <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Bolt">Quick assign</MudButton>
+                                                    </ActivatorContent>
+                                                    <ChildContent>
+                                                        @foreach (var c in quickAssignCarriers)
+                                                        {
+                                                            <MudMenuItem OnClick="@(async ()=> await QuickAssignCarrierAsyncInternal(o.Id, c.Id, c.Name))">@c.Name (@c.Phone)</MudMenuItem>
+                                                        }
+                                                    </ChildContent>
+                                                </MudMenu>
+                                            }
                                         }
                                         
                                     </MudMenu>
@@ -130,6 +145,7 @@
             <MudText Typo="Typo.h6">Order @selectedOrder.OrderNumber</MudText>
             <MudText>Placed: @selectedOrder.OrderDate.ToString("g")</MudText>
             <MudText>Customer: @selectedOrder.Customer?.Name (@selectedOrder.Customer?.Email)</MudText>
+            @* Inline carrier assignment removed to fix build; use Assign Carrier page via menu *@
             <MudTable Items="selectedOrder.OrderProducts" Dense="true">
                 <HeaderContent>
                     <MudTh>Product</MudTh>
@@ -155,6 +171,7 @@
             </div>
         </MudPaper>
     }
+
 </MudPaper>
 
 @code {
@@ -178,6 +195,15 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadOrdersAsync();
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            quickAssignCarriers = await db.Carriers.Where(c=>c.IsActive)
+                .OrderBy(c=>c.Name)
+                .Select(c=> new CarrierInfo { Id = c.Id, Name = c.Name, Phone = c.Phone ?? string.Empty })
+                .ToListAsync();
+        }
+        catch { }
     }
 
     private async Task OnSearchChanged(string value)
@@ -302,6 +328,36 @@
     {
         page = TotalPages - 1;
         await LoadOrdersAsync();
+    }
+
+    // Quick assign support
+    private class CarrierInfo { public int Id { get; set; } public string Name { get; set; } = string.Empty; public string Phone { get; set; } = string.Empty; }
+    private List<CarrierInfo> quickAssignCarriers = new();
+    private async Task QuickAssignCarrierAsyncInternal(int orderId, int carrierId, string carrierName)
+    {
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            var order = await db.Orders.FirstOrDefaultAsync(o=>o.Id==orderId);
+            if (order == null) { Snackbar.Add("Order not found", Severity.Error); return; }
+            var delivery = await db.Deliveries.FirstOrDefaultAsync(d=>d.OrderId==orderId);
+            if (delivery == null)
+            {
+                delivery = new Delivery { OrderId = orderId };
+                db.Deliveries.Add(delivery);
+            }
+            delivery.CarrierId = carrierId;
+            delivery.Status = DeliveryStatus.InTransit;
+            await db.SaveChangesAsync();
+            deliveries[orderId] = (carrierName, deliveries.TryGetValue(orderId, out var d) ? d.Tracking : string.Empty);
+            Snackbar.Add($"Assigned to {carrierName}", Severity.Success);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            Snackbar.Add("Failed to assign carrier", Severity.Error);
+        }
     }
 
     private Color GetStatusColor(OrderStatus status)

@@ -4,32 +4,40 @@
 @using Microsoft.EntityFrameworkCore
 
 <MudDialogContent>
-    <MudSelect T="int" Label="Carrier" @bind-Value="selectedCarrierId" Dense="true">
+    <MudSelect T="int" Label="Order" @bind-Value="selectedOrderId" Dense="true">
+        @foreach (var o in shippedOrders)
+        {
+            <MudSelectItem T="int" Value="@o.Id">@o.OrderNumber (@o.Customer?.Name) — @o.OrderDate.ToString("g")</MudSelectItem>
+        }
+    </MudSelect>
+    <MudSelect T="int" Label="Carrier" @bind-Value="selectedCarrierId" Dense="true" Class="mt-2">
         @foreach (var c in carriers)
         {
             <MudSelectItem T="int" Value="@c.Id">@c.Name (@c.Phone)</MudSelectItem>
         }
     </MudSelect>
-    <MudTextField Label="Tracking number" @bind-Value="tracking" />
+    <MudTextField Label="Tracking number" @bind-Value="tracking" Class="mt-2" />
 </MudDialogContent>
 <MudDialogActions>
     <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Ok" Disabled="@(selectedCarrierId == 0)">Assign</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Ok" Disabled="@(selectedCarrierId == 0 || selectedOrderId == 0)">Assign</MudButton>
 </MudDialogActions>
 
 @code {
-    [Parameter] public int OrderId { get; set; }
     [CascadingParameter] object DialogRef { get; set; }
     [Inject] IDbContextFactory<ApplicationDbContext> DbFactory { get; set; }
 
     private List<Carrier> carriers = new();
+    private List<Orders> shippedOrders = new();
     private int selectedCarrierId;
+    private int selectedOrderId;
     private string tracking = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         using var db = DbFactory.CreateDbContext();
         carriers = await db.Carriers.Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
+        shippedOrders = await db.Orders.Include(o=>o.Customer).Where(o => o.Status == OrderStatus.Shipped).OrderByDescending(o=>o.OrderDate).Take(200).ToListAsync();
     }
 
     void Cancel()
@@ -42,10 +50,16 @@
         try
         {
             using var db = DbFactory.CreateDbContext();
-            var delivery = await db.Deliveries.FirstOrDefaultAsync(d => d.OrderId == OrderId);
+            var order = await db.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == selectedOrderId);
+            if (order == null)
+            {
+                ((dynamic)DialogRef)?.Close(DialogResult.Cancel());
+                return;
+            }
+            var delivery = await db.Deliveries.FirstOrDefaultAsync(d => d.OrderId == selectedOrderId);
             if (delivery == null)
             {
-                delivery = new Delivery { OrderId = OrderId };
+                delivery = new Delivery { OrderId = selectedOrderId };
                 db.Deliveries.Add(delivery);
             }
             delivery.CarrierId = selectedCarrierId;
