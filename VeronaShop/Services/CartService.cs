@@ -82,13 +82,14 @@ namespace VeronaShop.Services
             return cart;
         }
 
-        public async Task AddToCartAsync(Cart cart, int productId, int quantity)
+        public async Task AddToCartAsync(Cart cart, int productId, int quantity, int? sizeId = null, string? sizeName = null)
         {
             using var db = _dbFactory.CreateDbContext();
             var product = await db.Products.FindAsync(productId);
             if (product == null) return;
 
-            var item = cart.Items?.FirstOrDefault(i => i.ProductId == productId);
+            // match existing cart line by product and size
+            var item = cart.Items?.FirstOrDefault(i => i.ProductId == productId && i.SizeId == sizeId && (i.SizeName ?? string.Empty) == (sizeName ?? string.Empty));
             if (item != null)
             {
                 item.Quantity += quantity;
@@ -101,7 +102,9 @@ namespace VeronaShop.Services
                     ProductId = productId,
                     Product = product,
                     Quantity = quantity,
-                    UnitPrice = product.Price
+                    UnitPrice = product.Price,
+                    SizeId = sizeId,
+                    SizeName = sizeName
                 };
                 db.CartItems.Add(item);
             }
@@ -161,7 +164,7 @@ namespace VeronaShop.Services
 
                 foreach (var item in anonCart.Items)
                 {
-                    var exists = userCart.Items.FirstOrDefault(i => i.ProductId == item.ProductId);
+                    var exists = userCart.Items.FirstOrDefault(i => i.ProductId == item.ProductId && i.SizeId == item.SizeId && (i.SizeName ?? string.Empty) == (item.SizeName ?? string.Empty));
                     if (exists != null)
                     {
                         exists.Quantity += item.Quantity;
@@ -172,7 +175,9 @@ namespace VeronaShop.Services
                         {
                             ProductId = item.ProductId,
                             Quantity = item.Quantity,
-                            UnitPrice = item.UnitPrice
+                            UnitPrice = item.UnitPrice,
+                            SizeId = item.SizeId,
+                            SizeName = item.SizeName
                         });
                     }
                 }
