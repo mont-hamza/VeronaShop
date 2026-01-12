@@ -65,6 +65,10 @@ namespace VeronaShop.Data.Entites
 
         public virtual ICollection<OrderProduct> OrderProducts { get; set; } = new List<OrderProduct>();
 
+        // Comma separated list of sizes for the product (e.g. "S,M,L,XL").
+        // Admin can edit this as a CSV; client UI will parse and show options when present.
+        public string SizesCsv { get; set; } = string.Empty;
+
         // Audit
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? UpdatedAt { get; set; }

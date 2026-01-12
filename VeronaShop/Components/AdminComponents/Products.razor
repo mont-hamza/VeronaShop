@@ -45,6 +45,7 @@
                 <MudTextField @bind-Value="editingProduct.Price" Label="Price" InputType="InputType.Number" Required="true" />
                 <MudTextField @bind-Value="editingProduct.DiscountPrice" Label="Discount Price" InputType="InputType.Number" />
                 <MudTextField @bind-Value="editingProduct.StockQuantity" Label="Stock Quantity" InputType="InputType.Number" />
+                <MudTextField @bind-Value="editingProduct.SizesCsv" Label="Sizes (comma separated, e.g. S,M,L)" />
                 <MudCheckBox T="bool" @bind-Checked="editingProduct.IsPublished">Published</MudCheckBox>
 
                 <div class="mt-2">
@@ -169,9 +170,10 @@
         {
             Name = string.Empty,
             SKU = string.Empty,
-            ImageUrl = string.Empty,
+            ImageUrl = "/images/placeholder.svg",
             Description = string.Empty,
             Price = 0m,
+            SizesCsv = string.Empty,
             CreatedAt = DateTimeOffset.UtcNow,
             IsPublished = true
         };
@@ -185,6 +187,7 @@
             Name = p.Name,
             SKU = p.SKU,
             Description = p.Description,
+            SizesCsv = p.SizesCsv,
             Price = p.Price,
             DiscountPrice = p.DiscountPrice,
             StockQuantity = p.StockQuantity,
@@ -225,6 +228,12 @@
         editingProduct.Description ??= string.Empty;
         editingProduct.ImageUrl ??= string.Empty;
 
+        // ensure a default image url is present so DB inserts don't fail
+        if (string.IsNullOrWhiteSpace(editingProduct.ImageUrl))
+        {
+            editingProduct.ImageUrl = "/images/placeholder.svg";
+        }
+
         using var db = DbFactory.CreateDbContext();
             string oldImage = string.Empty;
             if (editingProduct.Id == 0)
@@ -248,6 +257,7 @@
                 existing.ImageUrl = editingProduct.ImageUrl ?? string.Empty;
                 existing.CategoryId = editingProduct.CategoryId;
                 existing.SupplierId = editingProduct.SupplierId;
+                existing.SizesCsv = editingProduct.SizesCsv ?? string.Empty;
                 existing.UpdatedAt = DateTimeOffset.UtcNow;
                 // message assigned after successful save
             }
@@ -318,13 +328,41 @@
     {
         if (productToDelete != null)
         {
-            using var db = DbFactory.CreateDbContext();
-            var existing = await db.Products.FindAsync(productToDelete.Id);
-            if (existing != null)
+            try
             {
-                db.Products.Remove(existing);
-                await db.SaveChangesAsync();
-                message = "Product deleted.";
+                using var db = DbFactory.CreateDbContext();
+                var existing = await db.Products.Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == productToDelete.Id);
+                if (existing != null)
+                {
+                    // remove product images rows first to avoid FK constraint issues
+                    if (existing.Images != null && existing.Images.Any())
+                    {
+                        // delete files from disk where possible
+                        foreach (var img in existing.Images.ToList())
+                        {
+                            try
+                            {
+                                if (!string.IsNullOrEmpty(img.Url) && img.Url.StartsWith("/uploads/products/"))
+                                {
+                                    var physical = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", img.Url.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                                    if (File.Exists(physical)) File.Delete(physical);
+                                }
+                            }
+                            catch { }
+                        }
+
+                        db.ProductImages.RemoveRange(existing.Images);
+                    }
+
+                    db.Products.Remove(existing);
+                    await db.SaveChangesAsync();
+                    message = "Product deleted.";
+                }
+            }
+            catch (Exception ex)
+            {
+                try { Logger.LogError(ex, "ConfirmDelete failed"); } catch { }
+                Snackbar.Add("Failed to delete product. See logs.", Severity.Error);
             }
             productToDelete = null;
             await LoadProducts();

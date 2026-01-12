@@ -1,4 +1,5 @@
 @using VeronaShop.Data.Entites
+@using System.Linq
 @using MudBlazor
 @using MudBlazor.Services
 @inject ISnackbar Snackbar
@@ -31,7 +32,16 @@
         <div style="flex:1 1 320px;min-width:260px;">
             <MudText Typo="Typo.h6" Color="Color.Primary">@string.Format(System.Globalization.CultureInfo.CurrentCulture, "{0:C}", Product?.Price)</MudText>
             <MudText Typo="Typo.body1" Class="mt-2">@Product?.Description</MudText>
-            <div class="mt-4 d-flex" style="gap:8px;">
+            <div class="mt-4 d-flex" style="gap:8px;align-items:center;">
+                @if (AvailableSizes.Any())
+                {
+                    <MudSelect T="string" @bind-Value="selectedSize" Label="Size" Dense="true" Style="min-width:120px;">
+                        @foreach (var s in AvailableSizes)
+                        {
+                            <MudSelectItem T="string" Value="@s">@s</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await AddToCart())">Add to cart</MudButton>
             </div>
         </div>
@@ -50,7 +60,18 @@
         {
             var sessionId = await CartSession.GetOrCreateSessionIdAsync();
             var cart = await CartService.GetOrCreateCartAsync(sessionId);
-            await CartService.AddToCartAsync(cart, Product.Id, 1);
+            int? sizeId = null;
+            string? sizeName = null;
+            if (!string.IsNullOrEmpty(selectedSize))
+            {
+                sizeName = selectedSize;
+            }
+            else if (AvailableSizes.Any())
+            {
+                Snackbar.Add("Please select a size", Severity.Warning);
+                return;
+            }
+            await CartService.AddToCartAsync(cart, Product.Id, 1, sizeId, sizeName);
             Snackbar.Add("Added to cart", Severity.Success);
             DialogReference.Close();
         }
@@ -59,6 +80,11 @@
             Snackbar.Add("Failed to add to cart", Severity.Error);
         }
     }
+
+    private List<string> AvailableSizes =>
+        string.IsNullOrWhiteSpace(Product?.SizesCsv) ? new List<string>() : Product.SizesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+
+    private string selectedSize;
 
     private void Close()
     {

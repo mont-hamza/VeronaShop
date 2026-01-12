@@ -25,6 +25,9 @@ namespace VeronaShop.Data.Entites
 
         public int Quantity { get; set; }
 
+        // Selected size snapshot (optional)
+        public string? SizeName { get; set; }
+
         [DataType(DataType.Currency)]
         public decimal LineTotal => UnitPrice * Quantity;
     }

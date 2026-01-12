@@ -152,12 +152,14 @@
                     <MudTh>Qty</MudTh>
                     <MudTh>Unit</MudTh>
                     <MudTh>Line</MudTh>
+                    <MudTh>Size</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd>@context.ProductName</MudTd>
                     <MudTd>@context.Quantity</MudTd>
                     <MudTd>@context.UnitPrice.ToString("C")</MudTd>
                     <MudTd>@(context.UnitPrice * context.Quantity).ToString("C")</MudTd>
+                    <MudTd>@context.SizeName</MudTd>
                 </RowTemplate>
             </MudTable>
             <div class="d-flex justify-space-between mt-2">

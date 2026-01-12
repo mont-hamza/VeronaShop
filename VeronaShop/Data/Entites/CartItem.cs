@@ -16,6 +16,10 @@ namespace VeronaShop.Data.Entites
         public int ProductId { get; set; }
         public Product Product { get; set; } = null!;
 
+        // Selected size for product (optional)
+        public int? SizeId { get; set; }
+        public string? SizeName { get; set; }
+
         public int Quantity { get; set; }
 
         [DataType(System.ComponentModel.DataAnnotations.DataType.Currency)]

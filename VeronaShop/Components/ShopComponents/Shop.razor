@@ -110,6 +110,13 @@
     {
         try
         {
+            var p = products.FirstOrDefault(x => x.Id == productId);
+            if (p != null && !string.IsNullOrWhiteSpace(p.SizesCsv))
+            {
+                await OpenQuickView(p);
+                return;
+            }
+
             var sessionId = await CartSession.GetOrCreateSessionIdAsync();
             var cart = await CartService.GetOrCreateCartAsync(sessionId);
             await CartService.AddToCartAsync(cart, productId, 1);

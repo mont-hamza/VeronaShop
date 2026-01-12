@@ -170,6 +170,8 @@ else
                     UnitPrice = it.UnitPrice,
                     Quantity = it.Quantity
                 };
+                // capture selected size into order snapshot
+                line.SizeName = it.SizeName;
                 db.OrderProducts.Add(line);
             }
 

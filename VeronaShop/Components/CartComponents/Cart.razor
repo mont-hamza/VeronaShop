@@ -31,7 +31,13 @@ else
         </HeaderContent>
         <RowTemplate>
             <MudTd><img src="@(string.IsNullOrEmpty(context.Product.ImageUrl) ? "images/placeholder.svg" : context.Product.ImageUrl)" style="width:60px;height:60px;object-fit:cover" /></MudTd>
-            <MudTd><a href="/product/@context.ProductId">@context.Product.Name</a></MudTd>
+            <MudTd>
+                <a href="/product/@context.ProductId">@context.Product.Name</a>
+                @if (!string.IsNullOrEmpty(context.SizeName))
+                {
+                    <div class="mud-caption">Size: @context.SizeName</div>
+                }
+            </MudTd>
             <MudTd>@(context.UnitPrice)</MudTd>
             <MudTd>
                 <MudNumericField T="int" @bind-Value="context.Quantity" Min="1" Immediate="true" OnBlur="@(async () => await UpdateQuantity(context.Id, context.Quantity))" />
