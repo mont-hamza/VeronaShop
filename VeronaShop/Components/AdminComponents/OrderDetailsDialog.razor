@@ -1,0 +1,51 @@
+@using VeronaShop.Data.Entites
+@using MudBlazor
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        @if (Order == null)
+        {
+            <MudText>Loading...</MudText>
+        }
+        else
+        {
+            <MudText Typo="Typo.h6">Order @Order.OrderNumber</MudText>
+            <MudText>Placed: @Order.OrderDate)</MudText>
+            <MudText>Customer: @Order.Customer?.Name (@Order.Customer?.Email)</MudText>
+
+            <MudTable Items="Order.OrderProducts" Dense="true" Class="mt-3">
+                <HeaderContent>
+                    <MudTh>Product</MudTh>
+                    <MudTh>Size</MudTh>
+                    <MudTh>Qty</MudTh>
+                    <MudTh>Unit</MudTh>
+                    <MudTh>Line</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.ProductName</MudTd>
+                    <MudTd>@(string.IsNullOrEmpty(context.SizeName) ? "-" : context.SizeName)</MudTd>
+                    <MudTd>@context.Quantity</MudTd>
+                    <MudTd>@context.UnitPrice</MudTd>
+                    <MudTd>@(context.UnitPrice * context.Quantity)</MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <div class="d-flex justify-end mt-3">
+                <MudText Typo="Typo.h6">Total: @Order.TotalAmount</MudText>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Orders Order { get; set; }
+
+    void Close()
+    {
+        try { DialogService.Close(null); } catch { }
+    }
+}
