@@ -1,0 +1,104 @@
+@page "/account/notifications"
+@using Microsoft.EntityFrameworkCore
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@using Microsoft.AspNetCore.SignalR.Client
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<h3>Notifications</h3>
+
+@if (notifications == null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!notifications.Any())
+{
+    <MudPaper Class="pa-4">No notifications.</MudPaper>
+}
+else
+{
+    <MudTable Items="notifications" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Id</MudTh>
+            <MudTh>Order</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Created</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Id</MudTd>
+            <MudTd>@context.OrderNumber</MudTd>
+            <MudTd>@context.Status</MudTd>
+            <MudTd>@context.CreatedAt</MudTd>
+            <MudTd><MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(async ()=> await MarkRead(context.Id))">Mark read</MudButton></MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<Notification> notifications;
+
+    [CascadingParameter] private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> AuthenticationStateProvider { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider;
+        var user = authState.User;
+        var appUser = await UserManager.GetUserAsync(user);
+        if (appUser == null) return;
+        using var db = DbFactory.CreateDbContext();
+        notifications = await db.Notifications.Where(n => n.RecipientEmail == appUser.Email).OrderByDescending(n => n.CreatedAt).ToListAsync();
+
+        // Start a hub connection to receive real-time notifications for this user
+        try
+        {
+            var hub = new HubConnectionBuilder().WithUrl(Navigation.ToAbsoluteUri("/hubs/notifications")).WithAutomaticReconnect().Build();
+            hub.On<string, string>("NewNotification", (orderNumber, createdAt) =>
+            {
+                try
+                {
+                    notifications.Insert(0, new Notification { OrderNumber = orderNumber, RecipientEmail = appUser.Email, Status = NotificationStatus.Pending, CreatedAt = DateTimeOffset.Parse(createdAt) });
+                    InvokeAsync(StateHasChanged);
+                }
+                catch { }
+            });
+            await hub.StartAsync();
+            _hub = hub;
+        }
+        catch { }
+    }
+}
+
+@code {
+    private Microsoft.AspNetCore.SignalR.Client.HubConnection _hub;
+
+    private async Task MarkRead(int id)
+    {
+        try
+        {
+            var client = new System.Net.Http.HttpClient();
+            var res = await client.PostAsJsonAsync("/api/notifications/mark-read", new { ids = new[] { id } });
+            if (res.IsSuccessStatusCode)
+            {
+                // remove from list for immediate feedback
+                notifications.RemoveAll(n => n.Id == id);
+                await InvokeAsync(StateHasChanged);
+                Snackbar.Add("Marked read", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Failed to mark read", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            Snackbar.Add("Failed to mark read", Severity.Error);
+        }
+    }
+}

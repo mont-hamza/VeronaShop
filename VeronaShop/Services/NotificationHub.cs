@@ -118,5 +118,11 @@ namespace VeronaShop.Services
             }
             catch { return 0; }
         }
+
+        // Notify a specific user by their user id (int -> string)
+        public async Task SendToUser(string userId, string orderNumber, string createdAt)
+        {
+            await Clients.User(userId).SendCoreAsync("NewNotification", new object[] { orderNumber, createdAt });
+        }
     }
 }

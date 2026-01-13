@@ -75,6 +75,7 @@
     private int pendingOrdersCount = 0;
     private int failedNotificationsCount = 0;
     private HubConnection? _hubConnection;
+    [Inject] ISnackbar Snackbar { get; set; }
     [Inject] private VeronaShop.Services.CartService CartService { get; set; }
     [Inject] private VeronaShop.Services.CartSessionService CartSession { get; set; }
     [Inject] private NavigationManager Navigation { get; set; }
@@ -121,6 +122,24 @@
                 }
                 catch { }
                 await InvokeAsync(StateHasChanged);
+            });
+
+            // receive per-user notifications
+            _hubConnection.On<string, string>("NewNotification", async (orderNumber, createdAt) =>
+            {
+                try
+                {
+                    // increment badge briefly
+                    failedNotificationsCount++;
+                    // show a simple snackbar toast for the user
+                    try
+                    {
+                        Snackbar?.Add($"New update for order {orderNumber}", Severity.Info);
+                    }
+                    catch { }
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch { }
             });
 
             await _hubConnection.StartAsync();

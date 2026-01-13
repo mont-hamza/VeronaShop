@@ -66,6 +66,80 @@ if (!string.IsNullOrEmpty(smtpHost))
     // Register concrete SmtpEmailSender as the IEmailSender implementation
     builder.Services.AddSingleton<IEmailSender>(new SmtpEmailSender(smtpHost, smtpPort, smtpUser, smtpPass));
 }
+
+// Endpoint to mark notifications as read for the current authenticated user
+app.MapPost("/api/notifications/mark-read", async (HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory) =>
+{
+    try
+    {
+        var body = await http.Request.ReadFromJsonAsync<JsonElement?>();
+        List<int> ids = null;
+        if (body.HasValue && body.Value.ValueKind == JsonValueKind.Object && body.Value.TryGetProperty("ids", out var idsElem) && idsElem.ValueKind == JsonValueKind.Array)
+        {
+            ids = new List<int>();
+            foreach (var e in idsElem.EnumerateArray())
+            {
+                if (e.ValueKind == JsonValueKind.Number && e.TryGetInt32(out var v)) ids.Add(v);
+            }
+        }
+
+        // resolve user info
+        var user = http.User;
+        int? userId = null;
+        string? email = null;
+        try
+        {
+            var idClaim = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier) ?? user?.FindFirst("sub") ?? user?.FindFirst("id");
+            if (idClaim != null && int.TryParse(idClaim.Value, out var parsed)) userId = parsed;
+            email = user?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        }
+        catch { }
+
+        using var db = dbFactory.CreateDbContext();
+
+        // If we don't have an email but do have a userId, try to lookup email
+        if (string.IsNullOrEmpty(email) && userId.HasValue)
+        {
+            try { email = await db.Users.Where(u => u.Id == userId.Value).Select(u => u.Email).FirstOrDefaultAsync(); } catch { }
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        if (ids == null || !ids.Any())
+        {
+            // mark all notifications for this email as read
+            if (!string.IsNullOrEmpty(email))
+            {
+                var sql = @"INSERT INTO NotificationReads (NotificationId, UserId, RecipientEmail, ReadAt)
+SELECT n.Id, {0}, {1}, {2}
+FROM Notifications n
+WHERE n.RecipientEmail = {1}
+AND NOT EXISTS (SELECT 1 FROM NotificationReads r WHERE r.NotificationId = n.Id AND (r.UserId = {0} OR r.RecipientEmail = {1}));";
+                try { await db.Database.ExecuteSqlRawAsync(sql, userId.HasValue ? (object)userId.Value : DBNull.Value, email, now); } catch { }
+            }
+        }
+        else
+        {
+            // mark specific ids
+            foreach (var nid in ids)
+            {
+                var sql = @"IF NOT EXISTS (SELECT 1 FROM NotificationReads r WHERE r.NotificationId = {0} AND (r.UserId = {1} OR r.RecipientEmail = {2}))
+BEGIN
+    INSERT INTO NotificationReads (NotificationId, UserId, RecipientEmail, ReadAt) VALUES ({0}, {1}, {2}, {3});
+END";
+                try { await db.Database.ExecuteSqlRawAsync(sql, nid, userId.HasValue ? (object)userId.Value : DBNull.Value, email ?? string.Empty, now); } catch { }
+            }
+        }
+
+        return Results.Ok();
+    }
+    catch (Exception ex)
+    {
+        var logger = http.RequestServices.GetService<ILogger<Program>>();
+        logger?.LogError(ex, "mark-read failed");
+        return Results.StatusCode(500);
+    }
+});
 builder.Services.AddScoped<CartService>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<CartSessionService>();
@@ -149,6 +223,18 @@ END";
         var ensureCarrierHours = @"IF COL_LENGTH('dbo.Carriers','DailyStart') IS NULL ALTER TABLE dbo.Carriers ADD DailyStart time NULL;
 IF COL_LENGTH('dbo.Carriers','DailyEnd') IS NULL ALTER TABLE dbo.Carriers ADD DailyEnd time NULL;";
         try { db.Database.ExecuteSqlRaw(ensureCarrierHours); } catch { }
+        // Ensure NotificationReads table exists for per-customer read receipts
+        var ensureNotificationReads = @"IF NOT EXISTS (SELECT * FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id WHERE t.name = 'NotificationReads' AND s.name = 'dbo')
+BEGIN
+    CREATE TABLE [dbo].[NotificationReads](
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [NotificationId] INT NOT NULL,
+        [UserId] INT NULL,
+        [RecipientEmail] NVARCHAR(256) NULL,
+        [ReadAt] DATETIMEOFFSET NOT NULL
+    );
+END";
+        try { db.Database.ExecuteSqlRaw(ensureNotificationReads); } catch { }
     }
     catch { }
 

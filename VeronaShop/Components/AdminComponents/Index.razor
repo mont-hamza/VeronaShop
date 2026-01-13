@@ -14,14 +14,14 @@
     <MudGrid>
         <MudItem xs="12" md="3">
             <MudPaper Class="pa-3">
-                <MudText Typo="Typo.subtitle1">Total Revenue</MudText>
-                <MudText Typo="Typo.h5">@TotalRevenue.ToString("C")</MudText>
+                <MudText Typo="Typo.subtitle1">Total Orders</MudText>
+                <MudText Typo="Typo.h5">@TotalOrders</MudText>
             </MudPaper>
         </MudItem>
         <MudItem xs="12" md="3">
             <MudPaper Class="pa-3">
-                <MudText Typo="Typo.subtitle1">Orders (30d)</MudText>
-                <MudText Typo="Typo.h5">@OrdersLast30d</MudText>
+                <MudText Typo="Typo.subtitle1">Total Revenue</MudText>
+                <MudText Typo="Typo.h5">@TotalRevenue.ToString("C")</MudText>
             </MudPaper>
         </MudItem>
         <MudItem xs="12" md="3">
@@ -32,8 +32,8 @@
         </MudItem>
         <MudItem xs="12" md="3">
             <MudPaper Class="pa-3">
-                <MudText Typo="Typo.subtitle1">Customers</MudText>
-                <MudText Typo="Typo.h5">@CustomersCount</MudText>
+                <MudText Typo="Typo.subtitle1">Products</MudText>
+                <MudText Typo="Typo.h5">@ProductCount</MudText>
             </MudPaper>
         </MudItem>
     </MudGrid>
@@ -101,6 +101,8 @@
     private int OrdersLast30d;
     private int PendingOrders;
     private int CustomersCount;
+    private int TotalOrders;
+    private int ProductCount;
 
     private string[] RevenueLabels = Array.Empty<string>();
     private double[][] RevenueSeries = Array.Empty<double[]>();
@@ -117,10 +119,12 @@
 
         // KPIs
         TotalRevenue = await db.Orders.SumAsync(o => (decimal?)o.TotalAmount) ?? 0m;
+        TotalOrders = await db.Orders.CountAsync();
         var since = DateTimeOffset.UtcNow.AddDays(-30);
         OrdersLast30d = await db.Orders.CountAsync(o => o.OrderDate >= since);
         PendingOrders = await db.Orders.CountAsync(o => o.Status == OrderStatus.Pending);
         CustomersCount = await db.Customers.CountAsync();
+        ProductCount = await db.Products.CountAsync();
 
         // Revenue last 12 weeks
         var start = DateTimeOffset.UtcNow.AddDays(-7 * 11);

@@ -11,6 +11,7 @@
 @inject VeronaShop.Services.CartSessionService CartSession
 @inject Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager
 @inject ISnackbar Snackbar
+@inject Microsoft.AspNetCore.SignalR.IHubContext<VeronaShop.Services.NotificationHub> HubContext
 @inject VeronaShop.Services.IBackgroundTaskQueue TaskQueue
 @using System.Linq
 @using VeronaShop.Data
@@ -188,6 +189,31 @@ else
 
             db.Invoices.Add(invoice);
             await db.SaveChangesAsync();
+
+            // Create a notification for the customer (in-app) and push via SignalR
+            try
+            {
+                var custNotif = new VeronaShop.Data.Entites.Notification
+                {
+                    OrderNumber = order.OrderNumber,
+                    RecipientEmail = customer.Email ?? string.Empty,
+                    Status = VeronaShop.Data.Entites.NotificationStatus.Pending,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.Notifications.Add(custNotif);
+                await db.SaveChangesAsync();
+
+                // push real-time to the specific user if available
+                try
+                {
+                    if (user != null)
+                    {
+                        await HubContext.Clients.User(user.Id.ToString()).SendCoreAsync("NewNotification", new object[] { order.OrderNumber, custNotif.CreatedAt.ToString("o") });
+                    }
+                }
+                catch { }
+            }
+            catch { }
 
             // remove cart items using same short-lived context
             var cartItems = db.CartItems.Where(ci => ci.CartId == cart.Id).ToList();

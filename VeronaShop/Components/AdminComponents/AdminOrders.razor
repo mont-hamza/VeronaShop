@@ -402,6 +402,23 @@
             o.Status = status;
             o.UpdatedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync();
+            // create a notification for customer about status change
+            try
+            {
+                var customer = await db.Customers.FindAsync(o.CustomerId);
+                if (customer != null)
+                {
+                    db.Notifications.Add(new VeronaShop.Data.Entites.Notification
+                    {
+                        OrderNumber = o.OrderNumber,
+                        RecipientEmail = customer.Email ?? string.Empty,
+                        Status = VeronaShop.Data.Entites.NotificationStatus.Pending,
+                        CreatedAt = DateTimeOffset.UtcNow
+                    });
+                    await db.SaveChangesAsync();
+                }
+            }
+            catch { }
             // update UI immediately
             var mem = orders?.FirstOrDefault(x => x.Id == orderId);
             if (mem != null)
