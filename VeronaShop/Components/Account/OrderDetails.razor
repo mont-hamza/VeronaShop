@@ -7,23 +7,25 @@
 @inject NavigationManager Navigation
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<SharedResources> L
 @inject ISnackbar Snackbar
 
-<PageTitle>Order Details</PageTitle>
+<PageTitle>@L["OrderDetailsTitle"]</PageTitle>
 
 <div class="order-details-page">
     @if (order == null)
     {
-        <p>Loading...</p>
+        <p>@L["Loading"]</p>
     }
     else
     {
-        <h3>Order @order.OrderNumber</h3>
-        <div><strong>Placed:</strong> @order.OrderDate.ToLocalTime().ToString("g")</div>
-        <div><strong>Status:</strong> @order.Status.ToString()</div>
-        <div><strong>Total:</strong> @order.TotalAmount.ToString("C")</div>
+        <h3>@L["Order"] @order.OrderNumber</h3>
+        <div><strong>@L["Placed"]</strong> @order.OrderDate.ToLocalTime().ToString("g")</div>
+        <div><strong>@L["Status"]</strong> @order.Status.ToString()</div>
+        <div><strong>@L["Total"]</strong> @order.TotalAmount.ToString("C")</div>
 
-        <h4>Items</h4>
+        <h4>@L["Items"]</h4>
         <div class="order-thumbs">
             @foreach (var it in order.OrderProducts)
             {
@@ -37,9 +39,9 @@
         </div>
 
         <div style="margin-top:12px">
-            <button class="mud-button-root mud-button" @onclick="PrintInvoice">Print</button>
-            <button class="mud-button-root mud-button" @onclick="DownloadInvoice">Download PDF</button>
-            <button class="mud-button-root mud-button" @onclick="EmailInvoice">Email Invoice</button>
+            <button class="mud-button-root mud-button" @onclick="PrintInvoice">@L["Print"]</button>
+            <button class="mud-button-root mud-button" @onclick="DownloadInvoice">@L["DownloadPDF"]</button>
+            <button class="mud-button-root mud-button" @onclick="EmailInvoice">@L["EmailInvoice"]</button>
         </div>
     }
 </div>
@@ -104,11 +106,11 @@
             var res = await client.PostAsJsonAsync($"/api/invoices/{order.Id}/email", new { To = to });
             if (res.IsSuccessStatusCode)
             {
-                Snackbar.Add("Invoice emailed", Severity.Success);
+                Snackbar.Add(L["InvoiceEmailed"], Severity.Success);
             }
             else
             {
-                Snackbar.Add("Failed to email invoice", Severity.Error);
+                Snackbar.Add(L["FailedEmailInvoice"], Severity.Error);
             }
         }
         catch { }

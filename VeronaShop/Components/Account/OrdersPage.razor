@@ -7,23 +7,24 @@
 @using MudBlazor
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 @using Microsoft.AspNetCore.Components.Authorization
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<PageTitle>My Orders</PageTitle>
+<PageTitle>@L["MyOrdersTitle"]</PageTitle>
 
 <div class="orders-page">
-    <h3>My Orders</h3>
+    <h3>@L["MyOrdersTitle"]</h3>
 
     <div class="d-flex align-center mb-3" style="gap:12px;flex-wrap:wrap">
         <div class="d-flex" style="gap:8px;align-items:center">
-            <MudText Typo="Typo.subtitle2">Filter:</MudText>
+            <MudText Typo="Typo.subtitle2">@L["Filter"]:</MudText>
             @foreach (var s in Enum.GetValues(typeof(OrderStatus)).Cast<OrderStatus>())
             {
                 <MudChip T="OrderStatus" OnClick="@(()=>ToggleStatusFilter(s))" Color="@(selectedStatus == s ? GetChipColor(s) : Color.Default)" Variant="@(selectedStatus == s ? Variant.Filled : Variant.Outlined)">@s</MudChip>
             }
-            <MudButton Variant="Variant.Text" OnClick="ClearFilter">Clear</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="ClearFilter">@L["Clear"]</MudButton>
         </div>
 
         <div style="margin-left:auto" class="d-flex align-center" >
@@ -49,16 +50,16 @@
     }
     else if (!string.IsNullOrEmpty(loadError))
     {
-        <MudAlert Severity="Severity.Error">An error occurred loading orders: @loadError</MudAlert>
+        <MudAlert Severity="Severity.Error">@L["LoadOrdersError"]: @loadError</MudAlert>
     }
     else if (totalOrders == 0)
     {
-        <p>You have no orders yet.</p>
+        <p>@L["NoOrdersYet"]</p>
     }
     else
     {
         <div class="mb-2">
-            <MudText Typo="Typo.caption">Showing page @(page+1) — @totalOrders orders</MudText>
+            <MudText Typo="Typo.caption">@L["ShowingPage"] @(page+1) — @totalOrders @L["OrdersLabel"]</MudText>
         </div>
         <MudGrid GutterSize="GutterSize.Small">
             @foreach (var o in serverOrders)
@@ -71,7 +72,7 @@
                                     <img src="@(GetProductImageForOrder(o))" style="width:64px;height:64px;object-fit:cover;border-radius:6px" />
                                     <div>
                                         <MudText Typo="Typo.h6">@o.OrderNumber</MudText>
-                                        <MudText Typo="Typo.caption">Placed: @o.OrderDate.ToLocalTime().ToString("g")</MudText>
+                                        <MudText Typo="Typo.caption">@L["Placed"]: @o.OrderDate.ToLocalTime().ToString("g")</MudText>
                                     </div>
                                 </div>
                                 <div class="text-right">
@@ -89,16 +90,13 @@
                                 }
                                 @if (o.OrderProducts.Count > 3)
                                 {
-                                    <div class="muted">and @((o.OrderProducts.Count) - 3) more items...</div>
+                                    <div class="muted">@string.Format(L["AndNMoreItems"], (o.OrderProducts.Count) - 3)</div>
                                 }
                             </div>
 
                             <div class="d-flex justify-space-between align-center mt-3">
-                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => GoToOrder(o.Id))">View details</MudButton>
-                                <div class="d-flex" style="gap:8px;">
-                                    <MudButton Variant="Variant.Text" OnClick="@(() => GoToOrderPrint(o.Id))">Print</MudButton>
-                                    <MudButton Variant="Variant.Text" OnClick="@(() => DownloadInvoiceById(o.Id))">Download</MudButton>
-                                </div>
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => GoToOrder(o.Id))">@L["ViewDetails"]</MudButton>
+                                
                             </div>
                         </MudCardContent>
                     </MudCard>
@@ -106,9 +104,9 @@
             }
         </MudGrid>
         <div class="d-flex justify-space-between align-center mt-3">
-            <MudButton Disabled="@(page==0)" OnClick="@( () => { PrevPage(); StateHasChanged(); } )">Previous</MudButton>
-            <MudText Typo="Typo.caption">Page @(page+1) of @TotalPages</MudText>
-            <MudButton Disabled="@(page>=TotalPages-1)" OnClick="@( () => { NextPage(); StateHasChanged(); } )">Next</MudButton>
+            <MudButton Disabled="@(page==0)" OnClick="@( () => { PrevPage(); StateHasChanged(); } )">@L["Previous"]</MudButton>
+            <MudText Typo="Typo.caption">@string.Format(L["PageOf"], page+1, TotalPages)</MudText>
+            <MudButton Disabled="@(page>=TotalPages-1)" OnClick="@( () => { NextPage(); StateHasChanged(); } )">@L["Next"]</MudButton>
         </div>
     }
 </div>

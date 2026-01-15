@@ -5,26 +5,37 @@
 @using VeronaShop.Data.Entites
 @using MudBlazor
 @using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.SignalR
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject Microsoft.AspNetCore.SignalR.IHubContext<VeronaShop.Services.NotificationHub> HubContext
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 @attribute [Authorize(Roles = "Admin")]
 @rendermode InteractiveServer
 
-<h3>Manage Orders</h3>
+<h3>@L["ManageOrders"]</h3>
 
 <MudPaper Class="pa-4">
     @* Status legend removed to reduce clutter *@
     <div class="d-flex gap-3 align-center mb-3 wrap-on-mobile" style="flex-wrap:wrap">
-        <MudTextField @bind-Value="searchTerm" Placeholder="Search order # or customer" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" OnImmediateValueChanged="OnSearchChanged" />
+        <MudTextField @bind-Value="searchTerm" Placeholder="@L["SearchOrdersPlaceholder"]" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" OnImmediateValueChanged="OnSearchChanged" />
 
-        <MudSelect T="VeronaShop.Data.Entites.OrderStatus?" Value="statusFilter" Placeholder="All statuses" Dense="true" Style="min-width:200px" ValueChanged="@(async (VeronaShop.Data.Entites.OrderStatus? v) => { statusFilter = v; page = 0; await LoadOrdersAsync(); })">
-            <MudSelectItem T="VeronaShop.Data.Entites.OrderStatus?" Value="null">All statuses</MudSelectItem>
+            <MudSelect T="VeronaShop.Data.Entites.OrderStatus?" Value="statusFilter" Placeholder="@L["AllStatuses"]" Dense="true" Style="min-width:200px" ValueChanged="@(async (VeronaShop.Data.Entites.OrderStatus? v) => { statusFilter = v; page = 0; await LoadOrdersAsync(); })">
+            <MudSelectItem T="VeronaShop.Data.Entites.OrderStatus?" Value="null">@L["AllStatuses"]</MudSelectItem>
             @foreach (var s in Enum.GetValues(typeof(VeronaShop.Data.Entites.OrderStatus)).Cast<VeronaShop.Data.Entites.OrderStatus>())
             {
                 <MudSelectItem T="VeronaShop.Data.Entites.OrderStatus?" Value="@s">@s</MudSelectItem>
             }
+        </MudSelect>
+
+        <MudSelect T="bool?" Value="isPaidFilter" Placeholder="@L["Payment"]" Dense="true" Style="min-width:160px" ValueChanged="@(async (bool? v) => { isPaidFilter = v; page = 0; await LoadOrdersAsync(); })">
+            <MudSelectItem T="bool?" Value="null">@L["AllPayments"]</MudSelectItem>
+            <MudSelectItem T="bool?" Value="true">@L["Paid"]</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">@L["Unpaid"]</MudSelectItem>
         </MudSelect>
 
         <MudDatePicker @bind-Date="dateFrom" Label="From" Clearable="true" />
@@ -66,11 +77,14 @@
                                     <MudText Typo="Typo.caption">@o.OrderDate.ToString("g")</MudText>
                                 </div>
                             <div class="d-flex admin-order-actions" style="gap:8px;align-items:center;">
-                                    <MudChip T="string" Color="@(GetStatusColor(o.Status))" Variant="Variant.Filled">@o.Status</MudChip>
-                                    @if (o.IsPaid)
-                                    {
-                                        <MudChip T="string" Color="Color.Success" Variant="Variant.Filled">Paid</MudChip>
-                                    }
+                                        <MudChip T="string" Color="@(GetStatusColor(o.Status))" Variant="Variant.Filled">@o.Status</MudChip>
+                                    <MudButton Size="Size.Small" Variant="@(o.IsPaid ? Variant.Filled : Variant.Outlined)" Color="@(o.IsPaid ? Color.Success : Color.Primary)" OnClick="@(async () => await TogglePaidAsync(o.Id))" Disabled="@(savingPaidIds.Contains(o.Id))">
+                                        @if (savingPaidIds.Contains(o.Id))
+                                        {
+                                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                        }
+                                        @((o.IsPaid) ? L["Paid"] : L["MarkPaid"])
+                                    </MudButton>
                                 </div>
                             </div>
 
@@ -87,11 +101,11 @@
 
                             <div class="d-flex justify-space-between align-center mt-2">
                                 <div>
-                                    <MudText Typo="Typo.subtitle1">@o.TotalAmount.ToString("C")</MudText>
+                                    <MudText Typo="Typo.subtitle1">@o.TotalAmount</MudText>
                                 </div>
                                 <div class="d-flex order-action-compact" style="gap:8px;align-items:center;">
                                     <MudMenu Icon="@Icons.Material.Filled.Edit" Size="Size.Medium" Color="Color.Primary" Variant="Variant.Filled">
-                                        <MudMenuItem OnClick="@(async () => await ShowDetailsDialog(o.Id))">Details</MudMenuItem>
+                                        <MudMenuItem OnClick="@(async () => await ShowDetailsDialog(o.Id))">@L["Details"]</MudMenuItem>
                                         <MudDivider />
                                         @foreach (var sOpt in Enum.GetValues(typeof(OrderStatus)).Cast<OrderStatus>())
                                         {
@@ -100,12 +114,12 @@
                                         @if (o.Status == OrderStatus.Shipped)
                                         {
                                             <MudDivider />
-                                            <MudMenuItem Href="@($"/admin/deliveries?orderId={o.Id}")">Assign carrier</MudMenuItem>
+                                            <MudMenuItem Href="@($"/admin/deliveries?orderId={o.Id}")">@L["AssignCarrier"]</MudMenuItem>
                                             @if (quickAssignCarriers != null && quickAssignCarriers.Any())
                                             {
                                                 <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
                                                     <ActivatorContent>
-                                                        <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Bolt">Quick assign</MudButton>
+                                                <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Bolt">@L["QuickAssign"]</MudButton>
                                                     </ActivatorContent>
                                                     <ChildContent>
                                                         @foreach (var c in quickAssignCarriers)
@@ -115,8 +129,8 @@
                                                     </ChildContent>
                                                 </MudMenu>
                                             }
-                                        }
-                                        
+                                            
+                                            }
                                     </MudMenu>
                                 </div>
                             </div>
@@ -143,17 +157,17 @@
     {
         <MudDivider Class="my-4" />
         <MudPaper Class="pa-3">
-            <MudText Typo="Typo.h6">Order @selectedOrder.OrderNumber</MudText>
-            <MudText>Placed: @selectedOrder.OrderDate.ToString("g")</MudText>
-            <MudText>Customer: @selectedOrder.Customer?.Name (@selectedOrder.Customer?.Email)</MudText>
+            <MudText Typo="Typo.h6">@L["Order"] @selectedOrder.OrderNumber</MudText>
+            <MudText>@L["Placed"]: @selectedOrder.OrderDate.ToString("g")</MudText>
+            <MudText>@L["Customer"]: @selectedOrder.Customer?.Name (@selectedOrder.Customer?.Email)</MudText>
             @* Inline carrier assignment removed to fix build; use Assign Carrier page via menu *@
             <MudTable Items="selectedOrder.OrderProducts" Dense="true">
                 <HeaderContent>
-                    <MudTh>Product</MudTh>
-                    <MudTh>Qty</MudTh>
-                    <MudTh>Unit</MudTh>
-                    <MudTh>Line</MudTh>
-                    <MudTh>Size</MudTh>
+                    <MudTh>@L["Product"]</MudTh>
+                    <MudTh>@L["Qty"]</MudTh>
+                    <MudTh>@L["Unit"]</MudTh>
+                    <MudTh>@L["Line"]</MudTh>
+                    <MudTh>@L["Size"]</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd>@context.ProductName</MudTd>
@@ -166,11 +180,11 @@
             <div class="d-flex justify-space-between mt-2">
                 <div />
                 <div>
-                    <MudText Typo="Typo.h6">Total: @selectedOrder.TotalAmount.ToString("C")</MudText>
+                    <MudText Typo="Typo.h6">@L["Total"]: @selectedOrder.TotalAmount.ToString("C")</MudText>
                 </div>
             </div>
             <div class="mt-2">
-                <MudButton Variant="Variant.Outlined" OnClick="CloseDetails">Close</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="CloseDetails">@L["Close"]</MudButton>
             </div>
         </MudPaper>
     }
@@ -178,12 +192,13 @@
 </MudPaper>
 
 @code {
-    private List<VeronaShop.Data.Entites.Orders>? orders;
-    private VeronaShop.Data.Entites.Orders? selectedOrder;
+    private List<Orders>? orders;
+    private Orders? selectedOrder;
 
     // search / filter / paging
     private string? searchTerm;
     private OrderStatus? statusFilter;
+    private bool? isPaidFilter;
     private DateTime? dateFrom;
     private DateTime? dateTo;
     private int page = 0;
@@ -194,6 +209,7 @@
 
     // recent highlight tracking
     private HashSet<int> recentlyChangedIds = new();
+    private HashSet<int> savingPaidIds = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -227,6 +243,8 @@
         }
         if (statusFilter.HasValue)
             q = q.Where(o => o.Status == statusFilter.Value);
+        if (isPaidFilter.HasValue)
+            q = q.Where(o => o.IsPaid == isPaidFilter.Value);
         if (dateFrom.HasValue)
             q = q.Where(o => o.OrderDate >= dateFrom.Value);
         if (dateTo.HasValue)
@@ -256,11 +274,75 @@
             {
                 var val = (del.Carrier?.Name ?? "", del.TrackingNumber ?? "");
                 deliveries[orderId] = val;
-                d = val; return true;
+                d = val;
+                return true;
             }
         }
         catch { }
-        d = default; return false;
+        d = default;
+        return false;
+    }
+
+    private async Task TogglePaidAsync(int orderId)
+    {
+        // optimistic UI: flip local state immediately, then persist
+        try
+        {
+            var mem = orders?.FirstOrDefault(x => x.Id == orderId);
+            if (mem == null) { Snackbar.Add("Order not found", Severity.Warning); return; }
+
+            // flip locally
+            mem.IsPaid = !mem.IsPaid;
+            if (mem.IsPaid)
+                mem.PaidAt = DateTimeOffset.UtcNow;
+            else
+                mem.PaidAt = null;
+
+            savingPaidIds.Add(orderId);
+            await InvokeAsync(StateHasChanged);
+
+            using var db = DbFactory.CreateDbContext();
+            var o = await db.Orders.FindAsync(orderId);
+            if (o == null)
+            {
+                Snackbar.Add("Order not found in database", Severity.Error);
+                // revert
+                mem.IsPaid = !mem.IsPaid;
+                savingPaidIds.Remove(orderId);
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            o.IsPaid = mem.IsPaid;
+            o.PaidAt = mem.PaidAt;
+            o.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+
+            // broadcast update to all admin clients
+            try
+            {
+                var pendingCount = await db.Orders.Where(x => x.Status == OrderStatus.Pending).CountAsync();
+                var totalNotifications = await db.Notifications.CountAsync();
+                await HubContext.Clients.All.SendCoreAsync("NotifyCounts", new object[] { pendingCount, totalNotifications });
+                await HubContext.Clients.All.SendCoreAsync("NewNotification", new object[] { o.OrderNumber, DateTimeOffset.UtcNow.ToString("o") });
+            }
+            catch { }
+
+            Snackbar.Add($"Order {o.OrderNumber} payment updated", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            // revert optimistic change on failure
+            var mem = orders?.FirstOrDefault(x => x.Id == orderId);
+            if (mem != null) mem.IsPaid = !mem.IsPaid;
+            Snackbar.Add("Failed to update payment status", Severity.Error);
+        }
+        finally
+        {
+            savingPaidIds.Remove(orderId);
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task ShowDetails(int orderId)
@@ -295,7 +377,7 @@
         selectedOrder = null;
     }
 
-    private async Task ChangeStatus(int orderId, VeronaShop.Data.Entites.OrderStatus status)
+    private async Task ChangeStatus(int orderId, OrderStatus status)
     {
         try
         {
@@ -314,6 +396,28 @@
         {
             Console.Error.WriteLine(ex);
             Snackbar.Add("Failed to update status", Severity.Error);
+        }
+    }
+
+    private async Task MarkOrderPaidFromCard(int orderId)
+    {
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            var o = await db.Orders.FindAsync(orderId);
+            if (o != null && !o.IsPaid)
+            {
+                o.IsPaid = true;
+                o.PaidAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync();
+                Snackbar.Add($"Marked {o.OrderNumber} as paid", Severity.Success);
+                await LoadOrdersAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            Snackbar.Add("Failed to mark order paid", Severity.Error);
         }
     }
 

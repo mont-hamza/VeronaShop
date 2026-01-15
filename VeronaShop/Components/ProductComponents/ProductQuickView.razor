@@ -5,6 +5,7 @@
 @inject ISnackbar Snackbar
 @inject VeronaShop.Services.CartService CartService
 @inject VeronaShop.Services.CartSessionService CartSession
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 
 <style>
   /* animate dialog content when opened */
@@ -33,16 +34,16 @@
             <MudText Typo="Typo.h6" Color="Color.Primary">@string.Format(System.Globalization.CultureInfo.CurrentCulture, "{0:C}", Product?.Price)</MudText>
             <MudText Typo="Typo.body1" Class="mt-2">@Product?.Description</MudText>
             <div class="mt-4 d-flex" style="gap:8px;align-items:center;">
-                @if (AvailableSizes.Any())
+            @if (AvailableSizes.Any())
                 {
-                    <MudSelect T="string" @bind-Value="selectedSize" Label="Size" Dense="true" Style="min-width:120px;">
+                    <MudSelect T="string" @bind-Value="selectedSize" Label="@L["Size"]" Dense="true" Style="min-width:120px;">
                         @foreach (var s in AvailableSizes)
                         {
                             <MudSelectItem T="string" Value="@s">@s</MudSelectItem>
                         }
                     </MudSelect>
                 }
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await AddToCart())">Add to cart</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await AddToCart())">@L["AddToCart"]</MudButton>
             </div>
         </div>
     </div>
@@ -68,16 +69,16 @@
             }
             else if (AvailableSizes.Any())
             {
-                Snackbar.Add("Please select a size", Severity.Warning);
+                Snackbar.Add(L["PleaseSelectSize"], Severity.Warning);
                 return;
             }
             await CartService.AddToCartAsync(cart, Product.Id, 1, sizeId, sizeName);
-            Snackbar.Add("Added to cart", Severity.Success);
+            Snackbar.Add(L["AddedToCart"], Severity.Success);
             DialogReference.Close();
         }
         catch
         {
-            Snackbar.Add("Failed to add to cart", Severity.Error);
+            Snackbar.Add(L["FailedAddToCart"], Severity.Error);
         }
     }
 

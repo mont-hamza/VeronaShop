@@ -39,6 +39,9 @@ else
             <MudTd>@context.AttemptedAt</MudTd>
             <MudTd>@context.ErrorMessage</MudTd>
             <MudTd>@context.CreatedAt</MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(async () => await MarkOrderPaid(context.Id))">Mark order paid</MudButton>
+            </MudTd>
         </RowTemplate>
     </MudTable>
 }
@@ -85,6 +88,22 @@ else
                         await HubContext.Clients.All.SendCoreAsync("NotifyCounts", new object[] { await db2.Orders.Where(o => o.Status == VeronaShop.Data.Entites.OrderStatus.Pending).CountAsync(), totalViews });
                     }
                 }
+            }
+        }
+        catch { }
+    }
+
+    private async Task MarkOrderPaid(int orderId)
+    {
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            var o = await db.Orders.FindAsync(orderId);
+            if (o != null)
+            {
+                o.IsPaid = true;
+                o.PaidAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync();
             }
         }
         catch { }

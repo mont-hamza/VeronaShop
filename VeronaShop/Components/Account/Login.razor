@@ -13,6 +13,7 @@
 @inject ISnackbar Snackbar
 @inject ILogger<Login> Logger
 @rendermode InteractiveServer
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 
 <MudGrid Justify="Justify.Center" Class="mt-12">
     <MudItem xs="12" sm="8" md="4">
@@ -20,8 +21,8 @@
             <MudCardContent>
                 <div class="d-flex flex-column align-center">
                     <MudAvatar Icon="Icons.Material.Filled.Lock" Size="Size.Large" Class="mb-4" />
-                    <MudText Typo="Typo.h5" GutterBottom="true">Sign in to VeronaShop</MudText>
-                    <MudText Typo="Typo.body2" Class="mb-4">Enter your credentials to continue.</MudText>
+                    <MudText Typo="Typo.h5" GutterBottom="true">@L["SignInTo"] @L["SiteTitle"]</MudText>
+                    <MudText Typo="Typo.body2" Class="mb-4">@L["EnterCredentials"]</MudText>
                 </div>
 
                 <EditForm Model="loginModel" OnValidSubmit="HandleLogin" FormName="LoginForm">
@@ -33,21 +34,21 @@
                         <MudAlert Severity="Severity.Error" Elevation="0">@errorMessage</MudAlert>
                     }
 
-                    <MudTextField @bind-Value="loginModel.UserNameOrEmail" Label="Username or Email" Required="true" AutoFocus="true" />
-                    <MudTextField @bind-Value="loginModel.Password" Label="Password" InputType="InputType.Password" Required="true" />
+                    <MudTextField @bind-Value="loginModel.UserNameOrEmail" Label="@L["UsernameOrEmail"]" Required="true" AutoFocus="true" />
+                    <MudTextField @bind-Value="loginModel.Password" Label="@L["Password"]" InputType="InputType.Password" Required="true" />
 
                     <div class="d-flex justify-space-between align-center mt-3">
-                        <MudCheckBox T="bool" @bind-Checked="rememberMe">Remember me</MudCheckBox>
-                        <MudLink Href="/account/forgot">Forgot?</MudLink>
+                        <MudCheckBox T="bool" @bind-Checked="rememberMe">@L["RememberMe"]</MudCheckBox>
+                        <MudLink Href="/account/forgot">@L["Forgot"]</MudLink>
                     </div>
 
                     <div class="mt-4 d-flex justify-end">
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit">Sign in</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit">@L["SignIn"]</MudButton>
                     </div>
                 </EditForm>
 
                 <div class="mt-3">
-                    <MudText Typo="Typo.body2">Don't have an account? <MudLink Href="/account/register">Register</MudLink></MudText>
+                    <MudText Typo="Typo.body2">@L["NoAccount"] <MudLink Href="/account/register">@L["Register"]</MudLink></MudText>
                 </div>
             </MudCardContent>
         </MudCard>

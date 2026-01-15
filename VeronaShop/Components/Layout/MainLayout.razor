@@ -1,5 +1,7 @@
 ﻿@inherits LayoutComponentBase
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Localization
+@using System.Globalization
 @using VeronaShop.Data.Entites
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.SignalR.Client
@@ -7,16 +9,22 @@
 @using System.Threading.Tasks
 @using VeronaShop.Data
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.AspNetCore.Hosting
+
+@inject IStringLocalizer<SharedResources> L
+@inject IWebHostEnvironment Env
 
 <MudThemeProvider Theme="@_theme" IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 <CascadingAuthenticationState>
+    <div class="app-root @(IsRtl ? "rtl" : string.Empty)" dir="@(IsRtl ? "rtl" : "ltr")">
     <MudLayout>
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
-        <MudText Typo="Typo.h5" Class="ml-3">VeronaShop</MudText>
+        <MudText Typo="Typo.h5" Class="ml-3">@L["SiteTitle"]</MudText>
         <MudSpacer />
         <MudIconButton Icon="@(DarkLightModeButtonIcon)" Color="Color.Inherit" OnClick="@DarkModeToggle" />
         <AuthorizeView Roles="Admin">
@@ -24,28 +32,35 @@
                 @if (failedNotificationsCount > 0)
                 {
                     <MudBadge Class="notification-badge" Content="@failedNotificationsCount.ToString()" Color="Color.Warning" MaxValue="99">
-                        <MudIconButton Icon="@(Icons.Material.Filled.Notifications)" Color="Color.Inherit" Title="Notifications" OnClick="OnNotificationsClicked" />
+                        <MudIconButton Icon="@(Icons.Material.Filled.Notifications)" Color="Color.Inherit" Title="@L["Notifications"]" OnClick="OnNotificationsClicked" />
                     </MudBadge>
                 }
                 else
                 {
-                    <MudIconButton Icon="@(Icons.Material.Filled.Notifications)" Color="Color.Inherit" Title="Notifications" OnClick="OnNotificationsClicked" />
+                    <MudIconButton Icon="@(Icons.Material.Filled.Notifications)" Color="Color.Inherit" Title="@L["Notifications"]" OnClick="OnNotificationsClicked" />
                 }
             </Authorized>
         </AuthorizeView>
+
+        <MudMenu Icon="@Icons.Material.Filled.Language" AnchorOrigin="Origin.TopRight" TransformOrigin="Origin.TopRight">
+            <!-- language menu -->
+            <MudMenuItem OnClick='@( () => ChangeLanguage("en") )'>@L["English"]</MudMenuItem>
+            <MudMenuItem OnClick='@( () => ChangeLanguage("ar") )'>@L["Arabic"]</MudMenuItem>
+        </MudMenu>
+
         <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" Edge="Edge.End" OnClick="GoToCart">
             <span class="mud-badge mud-badge-dot" style="position:absolute;right:6px;top:6px;background-color:var(--mud-palette-error);color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">@cartCount</span>
         </MudIconButton>
         <AuthorizeView>
             <Authorized>
                 <MudMenu Icon="@Icons.Material.Filled.Person" AnchorOrigin="Origin.TopRight" TransformOrigin="Origin.TopRight">
-                    <MudMenuItem OnClick="@( () => Navigation.NavigateTo("/account/profile") )">Profile</MudMenuItem>
-                    <MudMenuItem Href="/auth/logout">Sign out</MudMenuItem>
+                    <MudMenuItem OnClick="@( () => Navigation.NavigateTo("/account/profile") )">@L["Profile"]</MudMenuItem>
+                    <MudMenuItem Href="/auth/logout">@L["SignOut"]</MudMenuItem>
                 </MudMenu>
             </Authorized>
             <NotAuthorized>
-                <MudTooltip Text="Sign in">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" StartIcon="@Icons.Material.Filled.Login" Style="border-radius:8px; padding:6px 12px;" OnClick="@( () => Navigation.NavigateTo("/account/login") )">Sign in</MudButton>
+                <MudTooltip Text="@L["SignIn"]">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" StartIcon="@Icons.Material.Filled.Login" Style="border-radius:8px; padding:6px 12px;" OnClick="@( () => Navigation.NavigateTo("/account/login") )">@L["SignIn"]</MudButton>
                 </MudTooltip>
             </NotAuthorized>
         </AuthorizeView>
@@ -56,14 +71,17 @@
     <MudMainContent Class="pt-16 pa-4">
         @Body
     </MudMainContent>
-</MudLayout>
+    </MudLayout>
+    </div>
+
+@* Development debug overlay removed *@
 
 </CascadingAuthenticationState>
 
 
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
+    @L["UnhandledError"]
+    <a href="." class="reload">@L["Reload"]</a>
     <span class="dismiss">🗙</span>
 </div>
 
@@ -75,13 +93,14 @@
     private int pendingOrdersCount = 0;
     private int failedNotificationsCount = 0;
     private HubConnection? _hubConnection;
-    [Inject] ISnackbar Snackbar { get; set; }
-    [Inject] private VeronaShop.Services.CartService CartService { get; set; }
-    [Inject] private VeronaShop.Services.CartSessionService CartSession { get; set; }
-    [Inject] private NavigationManager Navigation { get; set; }
-    [Inject] private IDbContextFactory<ApplicationDbContext> DbFactory { get; set; }
-    [Inject] private Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager { get; set; }
-    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; }
+    [Inject] ISnackbar Snackbar { get; set; } = default!;
+    [Inject] private VeronaShop.Services.CartService CartService { get; set; } = default!;
+    [Inject] private VeronaShop.Services.CartSessionService CartSession { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IDbContextFactory<ApplicationDbContext> DbFactory { get; set; } = default!;
+    [Inject] private Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+    [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
     private List<(int Id, string OrderNumber, string RecipientEmail, string Status, DateTimeOffset CreatedAt, bool IsViewedForMe)>? recentNotifications;
 
     protected override async Task OnInitializedAsync()
@@ -109,16 +128,16 @@
                 {
                     pendingOrdersCount = pending;
                     // fetch per-admin unviewed count from server
-                        try
-                        {
-                            var raw = await _hubConnection.InvokeAsync<object>("GetUnviewedCount");
-                            failedNotificationsCount = raw == null ? totalViews : Convert.ToInt32(raw);
-                        }
-                        catch
-                        {
-                            // fallback to provided totalViews if per-admin call fails
-                            failedNotificationsCount = totalViews;
-                        }
+                    try
+                    {
+                        var raw = await _hubConnection.InvokeAsync<object>("GetUnviewedCount");
+                        failedNotificationsCount = raw == null ? totalViews : Convert.ToInt32(raw);
+                    }
+                    catch
+                    {
+                        // fallback to provided totalViews if per-admin call fails
+                        failedNotificationsCount = totalViews;
+                    }
                 }
                 catch { }
                 await InvokeAsync(StateHasChanged);
@@ -200,8 +219,8 @@
 
         _theme = new()
         {
-            PaletteLight = _lightPalette,
-            PaletteDark = _darkPalette,
+            PaletteLight = _light_palette,
+            PaletteDark = _dark_palette,
             LayoutProperties = new LayoutProperties()
         };
     }
@@ -211,7 +230,6 @@
         _drawerOpen = !_drawerOpen;
     }
 
-    [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; }
     private async Task SignOut()
     {
         await SignInManager.SignOutAsync();
@@ -228,9 +246,8 @@
         Navigation.NavigateTo("/cart");
     }
 
-    private async Task OnNotificationsClicked()
+    private Task OnNotificationsClicked()
     {
-        // optimistically clear badge for immediate feedback, then navigate
         try
         {
             failedNotificationsCount = 0;
@@ -238,6 +255,7 @@
             Navigation.NavigateTo("/admin/notifications");
         }
         catch { }
+        return Task.CompletedTask;
     }
 
     private async Task HandleMenuOpenChangedAsync(bool open)
@@ -272,7 +290,7 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private readonly PaletteLight _lightPalette = new()
+    private readonly PaletteLight _light_palette = new()
     {
         Black = "#110e2d",
         AppbarText = "#424242",
@@ -282,7 +300,7 @@
         GrayLighter = "#f9f9f9",
     };
 
-    private readonly PaletteDark _darkPalette = new()
+    private readonly PaletteDark _dark_palette = new()
     {
         Primary = "#7e6fff",
         Surface = "#1e1e2d",
@@ -316,6 +334,14 @@
         true => Icons.Material.Rounded.AutoMode,
         false => Icons.Material.Outlined.DarkMode,
     };
+
+
+    private bool IsRtl { get; set; }
+
+    private void ChangeLanguage(string culture)
+    {
+        Navigation.NavigateTo($"/set-culture/{culture}", forceLoad: true);
+    }
 }
 
 

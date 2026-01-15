@@ -10,13 +10,14 @@
 @inject ISnackbar Snackbar
 @using MudBlazor
 @using VeronaShop.Components.ProductComponents
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 
 <MudContainer Class="mt-6">
     <div class="d-flex justify-space-between align-center mb-4">
-        <MudText Typo="Typo.h4">Shop</MudText>
+        <MudText Typo="Typo.h4">@L["ShopTitle"]</MudText>
         <AuthorizeView Roles="Admin">
             <Authorized>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@NavigateToAdminProducts">Manage products</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@NavigateToAdminProducts">@L["ManageProducts"]</MudButton>
             </Authorized>
         </AuthorizeView>
     </div>
@@ -45,10 +46,10 @@
                         <MudText Typo="Typo.subtitle1" Color="Color.Primary">@string.Format(System.Globalization.CultureInfo.CurrentCulture, "{0:C}", p.Price)</MudText>
                         </MudCardContent>
                         <MudCardActions Class="d-flex justify-space-between">
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await AddToCart(p.Id))">Add to cart</MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await AddToCart(p.Id))">@L["AddToCart"]</MudButton>
                             <AuthorizeView Roles="Admin">
                                 <Authorized>
-                                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="@( () => NavigateToEditProduct(p.Id) )">Edit</MudButton>
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="@( () => NavigateToEditProduct(p.Id) )">@L["Edit"]</MudButton>
                                 </Authorized>
                             </AuthorizeView>
                         </MudCardActions>

@@ -8,7 +8,8 @@
 @using MudBlazor
 @rendermode InteractiveServer
 
-<h3>Your Cart</h3>
+<h3>@L["YourCart"]</h3>
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 
 @if (cart == null)
 {
@@ -16,17 +17,17 @@
 }
 else if (!cart.Items.Any())
 {
-    <MudPaper Class="pa-4">Your cart is empty. Browse the <a href="/shop">shop</a> to add products.</MudPaper>
+    <MudPaper Class="pa-4">@L["CartEmpty"] <a href="/shop">@L["ShopTitle"]</a> @L["ToAddProducts"]</MudPaper>
 }
 else
 {
     <MudTable Items="cart.Items" Dense="true" Hover="true">
         <HeaderContent>
             <MudTh></MudTh>
-            <MudTh>Product</MudTh>
-            <MudTh>Price</MudTh>
-            <MudTh>Quantity</MudTh>
-            <MudTh>Line</MudTh>
+            <MudTh>@L["Product"]</MudTh>
+            <MudTh>@L["Price"]</MudTh>
+            <MudTh>@L["Quantity"]</MudTh>
+            <MudTh>@L["Line"]</MudTh>
             <MudTh></MudTh>
         </HeaderContent>
         <RowTemplate>
@@ -44,7 +45,7 @@ else
             </MudTd>
             <MudTd>@(context.UnitPrice * context.Quantity)</MudTd>
             <MudTd>
-                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="@(async ()=> await Remove(context.Id))">Remove</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="@(async ()=> await Remove(context.Id))">@L["Remove"]</MudButton>
             </MudTd>
         </RowTemplate>
     </MudTable>
