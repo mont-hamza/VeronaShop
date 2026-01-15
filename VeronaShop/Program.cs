@@ -11,8 +11,22 @@ using Microsoft.AspNetCore.Identity;
 using VeronaShop.Data;
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Builder;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add localization services and resources path
+builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+
+// Explicitly register a typed localizer for SharedResources using the known base name and root namespace.
+// This helps when implicit resource discovery doesn't locate satellite resources at runtime.
+// Defer typed IStringLocalizer<SharedResources> registration until the type is available
+builder.Services.AddSingleton(sp =>
+{
+    var factory = sp.GetRequiredService<Microsoft.Extensions.Localization.IStringLocalizerFactory>();
+    return factory.Create("SharedResources", "VeronaShop");
+});
+
 
 // Add MudBlazor services
 builder.Services.AddMudServices();
@@ -67,79 +81,6 @@ if (!string.IsNullOrEmpty(smtpHost))
     builder.Services.AddSingleton<IEmailSender>(new SmtpEmailSender(smtpHost, smtpPort, smtpUser, smtpPass));
 }
 
-// Endpoint to mark notifications as read for the current authenticated user
-app.MapPost("/api/notifications/mark-read", async (HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory) =>
-{
-    try
-    {
-        var body = await http.Request.ReadFromJsonAsync<JsonElement?>();
-        List<int> ids = null;
-        if (body.HasValue && body.Value.ValueKind == JsonValueKind.Object && body.Value.TryGetProperty("ids", out var idsElem) && idsElem.ValueKind == JsonValueKind.Array)
-        {
-            ids = new List<int>();
-            foreach (var e in idsElem.EnumerateArray())
-            {
-                if (e.ValueKind == JsonValueKind.Number && e.TryGetInt32(out var v)) ids.Add(v);
-            }
-        }
-
-        // resolve user info
-        var user = http.User;
-        int? userId = null;
-        string? email = null;
-        try
-        {
-            var idClaim = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier) ?? user?.FindFirst("sub") ?? user?.FindFirst("id");
-            if (idClaim != null && int.TryParse(idClaim.Value, out var parsed)) userId = parsed;
-            email = user?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
-        }
-        catch { }
-
-        using var db = dbFactory.CreateDbContext();
-
-        // If we don't have an email but do have a userId, try to lookup email
-        if (string.IsNullOrEmpty(email) && userId.HasValue)
-        {
-            try { email = await db.Users.Where(u => u.Id == userId.Value).Select(u => u.Email).FirstOrDefaultAsync(); } catch { }
-        }
-
-        var now = DateTimeOffset.UtcNow;
-
-        if (ids == null || !ids.Any())
-        {
-            // mark all notifications for this email as read
-            if (!string.IsNullOrEmpty(email))
-            {
-                var sql = @"INSERT INTO NotificationReads (NotificationId, UserId, RecipientEmail, ReadAt)
-SELECT n.Id, {0}, {1}, {2}
-FROM Notifications n
-WHERE n.RecipientEmail = {1}
-AND NOT EXISTS (SELECT 1 FROM NotificationReads r WHERE r.NotificationId = n.Id AND (r.UserId = {0} OR r.RecipientEmail = {1}));";
-                try { await db.Database.ExecuteSqlRawAsync(sql, userId.HasValue ? (object)userId.Value : DBNull.Value, email, now); } catch { }
-            }
-        }
-        else
-        {
-            // mark specific ids
-            foreach (var nid in ids)
-            {
-                var sql = @"IF NOT EXISTS (SELECT 1 FROM NotificationReads r WHERE r.NotificationId = {0} AND (r.UserId = {1} OR r.RecipientEmail = {2}))
-BEGIN
-    INSERT INTO NotificationReads (NotificationId, UserId, RecipientEmail, ReadAt) VALUES ({0}, {1}, {2}, {3});
-END";
-                try { await db.Database.ExecuteSqlRawAsync(sql, nid, userId.HasValue ? (object)userId.Value : DBNull.Value, email ?? string.Empty, now); } catch { }
-            }
-        }
-
-        return Results.Ok();
-    }
-    catch (Exception ex)
-    {
-        var logger = http.RequestServices.GetService<ILogger<Program>>();
-        logger?.LogError(ex, "mark-read failed");
-        return Results.StatusCode(500);
-    }
-});
 builder.Services.AddScoped<CartService>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<CartSessionService>();
@@ -153,6 +94,19 @@ builder.Services.AddHostedService<QueuedHostedService>();
 // builder.Services.AddSingleton<IEmailSender>(new SmtpEmailSender("smtp.example.com", 587, "user@example.com", "password"));
 
 var app = builder.Build();
+
+// Configure supported cultures for localization
+var supportedCultures = new[] { new CultureInfo("en"), new CultureInfo("ar") };
+var requestLocalizationOptions = new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture("en"),
+    SupportedCultures = supportedCultures.ToList(),
+    SupportedUICultures = supportedCultures.ToList()
+};
+// Allow overriding via query string (e.g. ?culture=ar)
+requestLocalizationOptions.RequestCultureProviders.Insert(0, new QueryStringRequestCultureProvider());
+
+// RequestLocalization will be configured later in the pipeline (after HTTPS redirection) so it runs before auth and endpoints.
 
 // Configure site-wide culture to use LYD for currency formatting
 var culture = new CultureInfo("en-LY");
@@ -235,6 +189,17 @@ BEGIN
     );
 END";
         try { db.Database.ExecuteSqlRaw(ensureNotificationReads); } catch { }
+
+        // Ensure Orders has IsPaid and PaidAt columns (safe-add if missing)
+        var ensureOrderPaidCols = @"IF COL_LENGTH('dbo.Orders','IsPaid') IS NULL
+BEGIN
+    ALTER TABLE dbo.Orders ADD IsPaid bit NOT NULL CONSTRAINT DF_Orders_IsPaid DEFAULT(0);
+END
+IF COL_LENGTH('dbo.Orders','PaidAt') IS NULL
+BEGIN
+    ALTER TABLE dbo.Orders ADD PaidAt datetimeoffset NULL;
+END";
+        try { db.Database.ExecuteSqlRaw(ensureOrderPaidCols); } catch { }
     }
     catch { }
 
@@ -288,6 +253,12 @@ else
 
 app.UseHttpsRedirection();
 
+
+// Apply request localization early, before authentication/authorization and endpoint routing
+app.UseRequestLocalization(requestLocalizationOptions);
+
+// Diagnostic middleware removed - keep pipeline minimal for production behavior
+
 app.UseAntiforgery();
 
 app.UseAuthentication();
@@ -329,6 +300,80 @@ app.MapGet("/auth/logout", async (HttpContext http, SignInManager<ApplicationUse
 
     http.Response.Redirect("/");
     return Results.Redirect("/");
+});
+
+// Endpoint to mark notifications as read for the current authenticated user
+app.MapPost("/api/notifications/mark-read", async (HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory) =>
+{
+    try
+    {
+        var body = await http.Request.ReadFromJsonAsync<JsonElement?>();
+        List<int> ids = null;
+        if (body.HasValue && body.Value.ValueKind == JsonValueKind.Object && body.Value.TryGetProperty("ids", out var idsElem) && idsElem.ValueKind == JsonValueKind.Array)
+        {
+            ids = new List<int>();
+            foreach (var e in idsElem.EnumerateArray())
+            {
+                if (e.ValueKind == JsonValueKind.Number && e.TryGetInt32(out var v)) ids.Add(v);
+            }
+        }
+
+        // resolve user info
+        var user = http.User;
+        int? userId = null;
+        string? email = null;
+        try
+        {
+            var idClaim = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier) ?? user?.FindFirst("sub") ?? user?.FindFirst("id");
+            if (idClaim != null && int.TryParse(idClaim.Value, out var parsed)) userId = parsed;
+            email = user?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        }
+        catch { }
+
+        using var db = dbFactory.CreateDbContext();
+
+        // If we don't have an email but do have a userId, try to lookup email
+        if (string.IsNullOrEmpty(email) && userId.HasValue)
+        {
+            try { email = await db.Users.Where(u => u.Id == userId.Value).Select(u => u.Email).FirstOrDefaultAsync(); } catch { }
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        if (ids == null || !ids.Any())
+        {
+            // mark all notifications for this email as read
+            if (!string.IsNullOrEmpty(email))
+            {
+                var sql = @"INSERT INTO NotificationReads (NotificationId, UserId, RecipientEmail, ReadAt)
+SELECT n.Id, {0}, {1}, {2}
+FROM Notifications n
+WHERE n.RecipientEmail = {1}
+AND NOT EXISTS (SELECT 1 FROM NotificationReads r WHERE r.NotificationId = n.Id AND (r.UserId = {0} OR r.RecipientEmail = {1}));";
+                try { await db.Database.ExecuteSqlRawAsync(sql, userId.HasValue ? (object)userId.Value : DBNull.Value, email, now); } catch { }
+            }
+        }
+        else
+        {
+            // mark specific ids
+            foreach (var nid in ids)
+            {
+                var sql = @"IF NOT EXISTS (SELECT 1 FROM NotificationReads r WHERE r.NotificationId = {0} AND (r.UserId = {1} OR r.RecipientEmail = {2}))
+BEGIN
+    INSERT INTO NotificationReads (NotificationId, UserId, RecipientEmail, ReadAt) VALUES ({0}, {1}, {2}, {3});
+END";
+                try { await db.Database.ExecuteSqlRawAsync(sql, nid, userId.HasValue ? (object)userId.Value : DBNull.Value, email ?? string.Empty, now); } catch { }
+            }
+        }
+
+        return Results.Ok();
+    }
+    catch (Exception ex)
+    {
+        var logger = http.RequestServices.GetService<ILogger<Program>>();
+        logger?.LogError(ex, "mark-read failed");
+        return Results.StatusCode(500);
+    }
 });
 
 app.MapStaticAssets();
@@ -434,6 +479,36 @@ if (app.Environment.IsDevelopment())
             return Results.StatusCode(500);
         }
     });
+
+    // Development-only diagnostic endpoint to inspect localization at runtime
+    app.MapGet("/diag/localize", (IServiceProvider sp) =>
+    {
+        try
+        {
+            var localizer = sp.GetService(typeof(Microsoft.Extensions.Localization.IStringLocalizer<VeronaShop.SharedResources>)) as Microsoft.Extensions.Localization.IStringLocalizer;
+            var siteTitle = localizer == null ? "(no-localizer)" : localizer["SiteTitle"].Value;
+            var currentCulture = System.Globalization.CultureInfo.CurrentCulture.Name;
+            var currentUi = System.Globalization.CultureInfo.CurrentUICulture.Name;
+            var asm = typeof(VeronaShop.SharedResources).Assembly;
+            var resources = asm.GetManifestResourceNames();
+            return Results.Ok(new { currentCulture, currentUi, siteTitle, resources });
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(detail: ex.ToString());
+        }
+    });
 }
+
+app.MapGet("/set-culture/{culture}", (string culture, HttpContext ctx) =>
+{
+    var cookieValue = Microsoft.AspNetCore.Localization.CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(culture));
+    ctx.Response.Cookies.Append(Microsoft.AspNetCore.Localization.CookieRequestCultureProvider.DefaultCookieName,
+        cookieValue,
+        new CookieOptions { Expires = DateTimeOffset.UtcNow.AddYears(1), SameSite = SameSiteMode.Lax });
+    // redirect back to referring page (or home)
+    var referer = ctx.Request.Headers["Referer"].FirstOrDefault() ?? "/";
+    return Results.Redirect(referer);
+});
 
 app.Run();

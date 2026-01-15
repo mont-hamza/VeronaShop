@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SiteTitle" xml:space="preserve">
+    <value>VeronaShop</value>
+  </data>
+  <data name="Notifications" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="SignIn" xml:space="preserve">
+    <value>Sign in</value>
+  </data>
+  <data name="Profile" xml:space="preserve">
+    <value>Profile</value>
+  </data>
+  <data name="SignOut" xml:space="preserve">
+    <value>Sign out</value>
+  </data>
+  <data name="English" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="Arabic" xml:space="preserve">
+    <value>العربية</value>
+  </data>
+  <data name="AddToCart" xml:space="preserve">
+    <value>Add to cart</value>
+  </data>
+  <data name="PleaseSelectSize" xml:space="preserve">
+    <value>Please select a size</value>
+  </data>
+  <data name="AddedToCart" xml:space="preserve">
+    <value>Added to cart</value>
+  </data>
+  <data name="FailedAddToCart" xml:space="preserve">
+    <value>Failed to add to cart</value>
+  </data>
+  <data name="ErrorTitle" xml:space="preserve">
+    <value>Error.</value>
+  </data>
+  <data name="ErrorMessage" xml:space="preserve">
+    <value>An error occurred while processing your request.</value>
+  </data>
+  <data name="RequestId" xml:space="preserve">
+    <value>Request ID:</value>
+  </data>
+  <data name="DevelopmentModeTitle" xml:space="preserve">
+    <value>Development Mode</value>
+  </data>
+  <data name="DevelopmentModeDescription" xml:space="preserve">
+    <value>Swapping to {0} environment will display more detailed information about the error that occurred.</value>
+  </data>
+  <data name="DevelopmentModeWarning" xml:space="preserve">
+    <value>The Development environment shouldn't be enabled for deployed applications.</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>Reload</value>
+  </data>
+  <data name="UnhandledError" xml:space="preserve">
+    <value>An unhandled error has occurred.</value>
+  </data>
+  <data name="OrderDetailsTitle" xml:space="preserve">
+    <value>Order Details</value>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value>Loading...</value>
+  </data>
+  <data name="Order" xml:space="preserve">
+    <value>Order</value>
+  </data>
+  <data name="Placed" xml:space="preserve">
+    <value>Placed</value>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Total" xml:space="preserve">
+    <value>Total</value>
+  </data>
+  <data name="Items" xml:space="preserve">
+    <value>Items</value>
+  </data>
+  <data name="Print" xml:space="preserve">
+    <value>Print</value>
+  </data>
+  <data name="DownloadPDF" xml:space="preserve">
+    <value>Download PDF</value>
+  </data>
+  <data name="EmailInvoice" xml:space="preserve">
+    <value>Email Invoice</value>
+  </data>
+  <data name="InvoiceEmailed" xml:space="preserve">
+    <value>Invoice emailed</value>
+  </data>
+  <data name="FailedEmailInvoice" xml:space="preserve">
+    <value>Failed to email invoice</value>
+  </data>
+  <data name="MyOrdersTitle" xml:space="preserve">
+    <value>My Orders</value>
+  </data>
+  <data name="Filter" xml:space="preserve">
+    <value>Filter</value>
+  </data>
+  <data name="Clear" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="Newest" xml:space="preserve">
+    <value>Newest</value>
+  </data>
+  <data name="Oldest" xml:space="preserve">
+    <value>Oldest</value>
+  </data>
+  <data name="TotalHigh" xml:space="preserve">
+    <value>Total (High)</value>
+  </data>
+  <data name="TotalLow" xml:space="preserve">
+    <value>Total (Low)</value>
+  </data>
+  <data name="LoadOrdersError" xml:space="preserve">
+    <value>An error occurred loading orders</value>
+  </data>
+  <data name="NoOrdersYet" xml:space="preserve">
+    <value>You have no orders yet.</value>
+  </data>
+  <data name="ShowingPage" xml:space="preserve">
+    <value>Showing page</value>
+  </data>
+  <data name="OrdersLabel" xml:space="preserve">
+    <value>orders</value>
+  </data>
+  <data name="ViewDetails" xml:space="preserve">
+    <value>View details</value>
+  </data>
+  <data name="AndNMoreItems" xml:space="preserve">
+    <value>and {0} more items...</value>
+  </data>
+  <data name="Previous" xml:space="preserve">
+    <value>Previous</value>
+  </data>
+  <data name="Next" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="PageOf" xml:space="preserve">
+    <value>Page {0} of {1}</value>
+  </data>
+  <data name="ManageOrders" xml:space="preserve">
+    <value>Manage Orders</value>
+  </data>
+  <data name="SearchOrdersPlaceholder" xml:space="preserve">
+    <value>Search order # or customer</value>
+  </data>
+  <data name="AllStatuses" xml:space="preserve">
+    <value>All statuses</value>
+  </data>
+  <data name="Payment" xml:space="preserve">
+    <value>Payment</value>
+  </data>
+  <data name="AllPayments" xml:space="preserve">
+    <value>All payments</value>
+  </data>
+  <data name="Paid" xml:space="preserve">
+    <value>Paid</value>
+  </data>
+  <data name="Unpaid" xml:space="preserve">
+    <value>Unpaid</value>
+  </data>
+  <data name="Paid" xml:space="preserve">
+    <value>Paid</value>
+  </data>
+  <data name="MarkPaid" xml:space="preserve">
+    <value>Mark paid</value>
+  </data>
+  <data name="Details" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="AssignCarrier" xml:space="preserve">
+    <value>Assign carrier</value>
+  </data>
+  <data name="QuickAssign" xml:space="preserve">
+    <value>Quick assign</value>
+  </data>
+  <data name="Customer" xml:space="preserve">
+    <value>Customer</value>
+  </data>
+  <data name="Product" xml:space="preserve">
+    <value>Product</value>
+  </data>
+  <data name="Qty" xml:space="preserve">
+    <value>Qty</value>
+  </data>
+  <data name="Unit" xml:space="preserve">
+    <value>Unit</value>
+  </data>
+  <data name="Line" xml:space="preserve">
+    <value>Line</value>
+  </data>
+  <data name="Size" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="Total" xml:space="preserve">
+    <value>Total</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+</root>

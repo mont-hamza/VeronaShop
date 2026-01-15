@@ -27,6 +27,7 @@ namespace VeronaShop.Data
         public DbSet<ProductImage> ProductImages { get; set; }
         public DbSet<Data.Entites.Notification> Notifications { get; set; }
         public DbSet<Data.Entites.NotificationView> NotificationViews { get; set; }
+        public DbSet<Data.Entites.NotificationRead> NotificationReads { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -43,6 +44,7 @@ namespace VeronaShop.Data
             modelBuilder.Entity<Invoice>().Property(i => i.Amount).HasColumnType("decimal(18,2)");
             modelBuilder.Entity<Data.Entites.Notification>().Property(n => n.RecipientEmail).HasMaxLength(256);
             modelBuilder.Entity<Data.Entites.NotificationView>().HasIndex(nv => new { nv.NotificationId, nv.AdminId }).IsUnique(false);
+            modelBuilder.Entity<Data.Entites.NotificationRead>().HasIndex(nr => new { nr.NotificationId, nr.UserId }).IsUnique(false);
         }
 
         public async Task<bool> TableExistsAsync(string tableName)

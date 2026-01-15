@@ -38,6 +38,7 @@ namespace VeronaShop.Data.Entites
         public OrderStatus Status { get; set; } = OrderStatus.Pending;
 
         public bool IsPaid { get; set; }
+        public DateTimeOffset? PaidAt { get; set; }
 
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? UpdatedAt { get; set; }

@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="SiteTitle" xml:space="preserve">
+    <value>فيرونا شوب</value>
+  </data>
+  <data name="Notifications" xml:space="preserve">
+    <value>الإشعارات</value>
+  </data>
+  <data name="SignIn" xml:space="preserve">
+    <value>تسجيل الدخول</value>
+  </data>
+  <data name="Profile" xml:space="preserve">
+    <value>الملف الشخصي</value>
+  </data>
+  <data name="SignOut" xml:space="preserve">
+    <value>تسجيل الخروج</value>
+  </data>
+  <data name="English" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="Arabic" xml:space="preserve">
+    <value>العربية</value>
+  </data>
+  <data name="AddToCart" xml:space="preserve">
+    <value>أضف إلى السلة</value>
+  </data>
+  <data name="PleaseSelectSize" xml:space="preserve">
+    <value>الرجاء اختيار المقاس</value>
+  </data>
+  <data name="AddedToCart" xml:space="preserve">
+    <value>تمت الإضافة إلى السلة</value>
+  </data>
+  <data name="FailedAddToCart" xml:space="preserve">
+    <value>فشل في الإضافة إلى السلة</value>
+  </data>
+  <data name="ErrorTitle" xml:space="preserve">
+    <value>خطأ.</value>
+  </data>
+  <data name="ErrorMessage" xml:space="preserve">
+    <value>حدث خطأ أثناء معالجة طلبك.</value>
+  </data>
+  <data name="RequestId" xml:space="preserve">
+    <value>معرف الطلب:</value>
+  </data>
+  <data name="DevelopmentModeTitle" xml:space="preserve">
+    <value>وضع التطوير</value>
+  </data>
+  <data name="DevelopmentModeDescription" xml:space="preserve">
+    <value>التبديل إلى بيئة {0} سيعرض معلومات أكثر تفصيلاً حول الخطأ الذي حدث.</value>
+  </data>
+  <data name="DevelopmentModeWarning" xml:space="preserve">
+    <value>لا ينبغي تمكين بيئة التطوير للتطبيقات المنشورة.</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>إعادة التحميل</value>
+  </data>
+  <data name="UnhandledError" xml:space="preserve">
+    <value>حدث خطأ غير معالج.</value>
+  </data>
+  <data name="OrderDetailsTitle" xml:space="preserve">
+    <value>تفاصيل الطلب</value>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value>جاري التحميل...</value>
+  </data>
+  <data name="Order" xml:space="preserve">
+    <value>طلب</value>
+  </data>
+  <data name="Placed" xml:space="preserve">
+    <value>تاريخ الطلب</value>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>الحالة</value>
+  </data>
+  <data name="Total" xml:space="preserve">
+    <value>المجموع</value>
+  </data>
+  <data name="Items" xml:space="preserve">
+    <value>العناصر</value>
+  </data>
+  <data name="Print" xml:space="preserve">
+    <value>طباعة</value>
+  </data>
+  <data name="DownloadPDF" xml:space="preserve">
+    <value>تحميل PDF</value>
+  </data>
+  <data name="EmailInvoice" xml:space="preserve">
+    <value>إرسال الفاتورة عبر البريد</value>
+  </data>
+  <data name="InvoiceEmailed" xml:space="preserve">
+    <value>تم إرسال الفاتورة</value>
+  </data>
+  <data name="FailedEmailInvoice" xml:space="preserve">
+    <value>فشل في إرسال الفاتورة</value>
+  </data>
+  <data name="MyOrdersTitle" xml:space="preserve">
+    <value>طلباتي</value>
+  </data>
+  <data name="Filter" xml:space="preserve">
+    <value>التصفية</value>
+  </data>
+  <data name="Clear" xml:space="preserve">
+    <value>إفراغ</value>
+  </data>
+  <data name="Newest" xml:space="preserve">
+    <value>الأحدث</value>
+  </data>
+  <data name="Oldest" xml:space="preserve">
+    <value>الأقدم</value>
+  </data>
+  <data name="TotalHigh" xml:space="preserve">
+    <value>المجموع (الأعلى)</value>
+  </data>
+  <data name="TotalLow" xml:space="preserve">
+    <value>المجموع (الأدنى)</value>
+  </data>
+  <data name="LoadOrdersError" xml:space="preserve">
+    <value>حدث خطأ أثناء تحميل الطلبات</value>
+  </data>
+  <data name="NoOrdersYet" xml:space="preserve">
+    <value>ليس لديك طلبات حتى الآن.</value>
+  </data>
+  <data name="ShowingPage" xml:space="preserve">
+    <value>عرض الصفحة</value>
+  </data>
+  <data name="OrdersLabel" xml:space="preserve">
+    <value>الطلبات</value>
+  </data>
+  <data name="ViewDetails" xml:space="preserve">
+    <value>عرض التفاصيل</value>
+  </data>
+  <data name="AndNMoreItems" xml:space="preserve">
+    <value>و {0} عناصر أخرى...</value>
+  </data>
+  <data name="Previous" xml:space="preserve">
+    <value>السابق</value>
+  </data>
+  <data name="Next" xml:space="preserve">
+    <value>التالي</value>
+  </data>
+  <data name="PageOf" xml:space="preserve">
+    <value>الصفحة {0} من {1}</value>
+  </data>
+  <data name="ManageOrders" xml:space="preserve">
+    <value>إدارة الطلبات</value>
+  </data>
+  <data name="SearchOrdersPlaceholder" xml:space="preserve">
+    <value>ابحث عن رقم الطلب أو العميل</value>
+  </data>
+  <data name="AllStatuses" xml:space="preserve">
+    <value>جميع الحالات</value>
+  </data>
+  <data name="Payment" xml:space="preserve">
+    <value>الدفع</value>
+  </data>
+  <data name="AllPayments" xml:space="preserve">
+    <value>جميع الدفعات</value>
+  </data>
+  <data name="Paid" xml:space="preserve">
+    <value>مدفوع</value>
+  </data>
+  <data name="Unpaid" xml:space="preserve">
+    <value>غير مدفوع</value>
+  </data>
+  <data name="MarkPaid" xml:space="preserve">
+    <value>وضع كمدفوع</value>
+  </data>
+  <data name="Details" xml:space="preserve">
+    <value>تفاصيل</value>
+  </data>
+  <data name="AssignCarrier" xml:space="preserve">
+    <value>تعيين الناقل</value>
+  </data>
+  <data name="QuickAssign" xml:space="preserve">
+    <value>تعيين سريع</value>
+  </data>
+  <data name="Customer" xml:space="preserve">
+    <value>العميل</value>
+  </data>
+  <data name="Product" xml:space="preserve">
+    <value>المنتج</value>
+  </data>
+  <data name="Qty" xml:space="preserve">
+    <value>الكمية</value>
+  </data>
+  <data name="Unit" xml:space="preserve">
+    <value>الوحدة</value>
+  </data>
+  <data name="Line" xml:space="preserve">
+    <value>السطر</value>
+  </data>
+  <data name="Size" xml:space="preserve">
+    <value>المقاس</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>إغلاق</value>
+  </data>
+</root>

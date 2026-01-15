@@ -1,0 +1,25 @@
+/* RTL overrides for Arabic layout */
+:root.rtl, .app-root.rtl {
+  direction: rtl;
+}
+
+/* Flip flex containers where appropriate */
+.app-root.rtl .d-flex { flex-direction: row-reverse; }
+.app-root.rtl .justify-space-between { justify-content: space-between; }
+
+/* Align text to right for body content in RTL */
+.app-root.rtl body, .app-root.rtl .mud-typography, .app-root.rtl p, .app-root.rtl div { text-align: right; }
+
+/* Navigation adjustments */
+.app-root.rtl .mud-drawer {
+  text-align: right;
+}
+
+/* Adjust small UI elements */
+.app-root.rtl .mud-chip { margin-left: 0.5rem; margin-right: 0; }
+
+/* Ensure tables and order cards read correctly */
+.app-root.rtl .order-card-elevated { direction: rtl; }
+
+/* Make sure menu icons are mirrored if necessary */
+.app-root.rtl .mud-icon-button { transform: scaleX(-1); }
