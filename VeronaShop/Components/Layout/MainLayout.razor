@@ -24,7 +24,7 @@
 <MudSnackbarProvider />
 <CascadingAuthenticationState>
     <div class="app-root @(IsRtl ? "rtl" : string.Empty)" dir="@(IsRtl ? "rtl" : "ltr")">
-    <MudLayout>
+    <MudLayout RightToLeft="@IsRtl">
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
         <MudText Typo="Typo.h5" Class="ml-3">@L["SiteTitle"]</MudText>
@@ -64,7 +64,7 @@
             </NotAuthorized>
         </AuthorizeView>
     </MudAppBar>
-    <MudDrawer id="nav-drawer" @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+    <MudDrawer id="nav-drawer" @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2" Anchor="@(IsRtl ? Anchor.Right : Anchor.Left)">
         <NavMenu />
     </MudDrawer>
     <MudMainContent Class="pt-16 pa-4">
@@ -218,6 +218,8 @@
     protected override void OnInitialized()
     {
         base.OnInitialized();
+
+        IsRtl = CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft;
 
         _theme = new()
         {
