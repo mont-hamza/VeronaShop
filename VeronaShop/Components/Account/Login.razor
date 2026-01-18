@@ -120,24 +120,24 @@
                     // Attempt browser fallback POST to set cookie
                     var sessionId = string.Empty;
                     try { sessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "verona_cart_id"); } catch { }
-                    Snackbar.Add("Signing in via browser request...", Severity.Info);
+                    Snackbar.Add(L["SigningIn"], Severity.Info);
                     try { Logger.LogInformation("Invoking browser fallback POST for {User}", user.UserName); } catch { }
                     await JSRuntime.InvokeVoidAsync("submitFallbackLogin", user.UserName, loginModel.Password, string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl, sessionId);
                     return;
                 }
 
                 // Password did not match or other failure
-                errorMessage = "Invalid username or password.";
+                errorMessage = L["InvalidCredentials"];
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Login error: {ex}");
-                errorMessage = "An error occurred during login. Check server logs.";
+                Logger.LogError(ex, "Login error");
+                errorMessage = L["LoginError"];
             }
         }
         else
         {
-            errorMessage = "Invalid username or password.";
+            errorMessage = L["InvalidCredentials"];
         }
     }
 }

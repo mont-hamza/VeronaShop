@@ -21,7 +21,7 @@
         <MudItem xs="12" md="3">
             <MudPaper Class="pa-3">
                 <MudText Typo="Typo.subtitle1">Total Revenue</MudText>
-                <MudText Typo="Typo.h5">@TotalRevenue.ToString("C")</MudText>
+                <MudText Typo="Typo.h5">@($"LYD {TotalRevenue:N2}")</MudText>
             </MudPaper>
         </MudItem>
         <MudItem xs="12" md="3">
@@ -71,7 +71,7 @@
                         <MudTd>@context.OrderNumber</MudTd>
                         <MudTd>@context.OrderDate.ToString("g")</MudTd>
                         <MudTd><MudChip T="string" Color="@(GetStatusColor(context.Status))" Variant="Variant.Filled">@context.Status.ToString()</MudChip></MudTd>
-                        <MudTd Align="Align.Right">@context.TotalAmount.ToString("C")</MudTd>
+                        <MudTd Align="Align.Right">@($"LYD {context.TotalAmount:N2}")</MudTd>
                     </RowTemplate>
                 </MudTable>
             </MudPaper>
@@ -88,7 +88,7 @@
                     <RowTemplate>
                         <MudTd>@context.Name</MudTd>
                         <MudTd Align="Align.Right">@context.Units</MudTd>
-                        <MudTd Align="Align.Right">@context.Revenue.ToString("C")</MudTd>
+                        <MudTd Align="Align.Right">@($"LYD {context.Revenue:N2}")</MudTd>
                     </RowTemplate>
                 </MudTable>
             </MudPaper>

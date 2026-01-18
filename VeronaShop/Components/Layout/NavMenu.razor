@@ -1,37 +1,38 @@
 ﻿
 @using Microsoft.AspNetCore.Identity
 @inject NavigationManager Navigation
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 
 <MudNavMenu>
-    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
-    <MudNavLink Href="shop" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingBag">Shop</MudNavLink>
-    <MudNavLink Href="cart" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingCart">Cart</MudNavLink>
-    <MudNavLink Href="checkout" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Payment">Checkout</MudNavLink>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">@L["HomeTitle"]</MudNavLink>
+    <MudNavLink Href="shop" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingBag">@L["Shop"]</MudNavLink>
+    <MudNavLink Href="cart" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingCart">@L["Cart"]</MudNavLink>
+    <MudNavLink Href="checkout" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Payment">@L["Checkout"]</MudNavLink>
 
     <AuthorizeView Roles="Admin">
         <Authorized>
-            <MudNavGroup Title="Admin" Icon="@Icons.Material.Filled.AdminPanelSettings">
-                <MudNavLink Href="admin" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">Overview</MudNavLink>
-                <MudNavLink Href="admin/products" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Inventory">Products</MudNavLink>
-                <MudNavLink Href="admin/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Receipt">Orders</MudNavLink>
-                <MudNavLink Href="admin/carriers" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.LocalShipping">Carriers</MudNavLink>
-                <MudNavLink Href="admin/deliveries" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.DeliveryDining">Deliveries</MudNavLink>
-                <MudNavLink Href="admin/users" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Group">Users</MudNavLink>
+            <MudNavGroup Title="@L["AdminMenu"]" Icon="@Icons.Material.Filled.AdminPanelSettings">
+                <MudNavLink Href="admin" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">@L["Overview"]</MudNavLink>
+                <MudNavLink Href="admin/products" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Inventory">@L["ProductsMenu"]</MudNavLink>
+                <MudNavLink Href="admin/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Receipt">@L["OrdersMenu"]</MudNavLink>
+                <MudNavLink Href="admin/carriers" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.LocalShipping">@L["CarriersMenu"]</MudNavLink>
+                <MudNavLink Href="admin/deliveries" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.DeliveryDining">@L["DeliveriesMenu"]</MudNavLink>
+                <MudNavLink Href="admin/users" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Group">@L["UsersMenu"]</MudNavLink>
             </MudNavGroup>
         </Authorized>
     </AuthorizeView>
 
-    <MudNavGroup Title="Account" Icon="@Icons.Material.Filled.AccountCircle">
+    <MudNavGroup Title="@L["AccountMenu"]" Icon="@Icons.Material.Filled.AccountCircle">
         <AuthorizeView>
             <NotAuthorized>
-                <MudNavLink Href="/account/login" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Login">Login</MudNavLink>
-                <MudNavLink Href="/account/register" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AppRegistration">Register</MudNavLink>
+                <MudNavLink Href="/account/login" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Login">@L["Login"]</MudNavLink>
+                <MudNavLink Href="/account/register" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AppRegistration">@L["Register"]</MudNavLink>
             </NotAuthorized>
             <Authorized>
-                <MudNavLink Href="/account/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.List">My Orders</MudNavLink>
-                <MudNavLink Href="/account/notifications" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Notifications">Notifications</MudNavLink>
-                <MudNavLink Href="/account/profile" Icon="@Icons.Material.Filled.Person">Profile</MudNavLink>
-                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Logout" OnClick="@LogoutAsync">Logout</MudButton>
+                <MudNavLink Href="/account/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.List">@L["MyOrdersTitle"]</MudNavLink>
+                <MudNavLink Href="/account/notifications" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Notifications">@L["Notifications"]</MudNavLink>
+                <MudNavLink Href="/account/profile" Icon="@Icons.Material.Filled.Person">@L["Profile"]</MudNavLink>
+                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Logout" OnClick="@LogoutAsync">@L["SignOut"]</MudButton>
             </Authorized>
         </AuthorizeView>
     </MudNavGroup>

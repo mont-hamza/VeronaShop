@@ -4,6 +4,7 @@
 @using MudBlazor
 @using Microsoft.EntityFrameworkCore
 @using VeronaShop.Data
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 @code {
     [Parameter] public int id { get; set; }
     private VeronaShop.Data.Entites.Product product;
@@ -16,7 +17,7 @@
 
 @if (product == null)
 {
-    <p>Product not found.</p>
+    <p>@L["ProductNotFound"]</p>
 }
 else
 {
@@ -24,29 +25,29 @@ else
         <img src="@(string.IsNullOrEmpty(product.ImageUrl) ? "images/placeholder.svg" : product.ImageUrl)" alt="@product.Name" style="max-width:300px;height:auto;object-fit:cover" />
         <h2>@product.Name</h2>
         <p>@product.Description</p>
-        <p>Price: @string.Format(new System.Globalization.CultureInfo("en-LY"), "{0:C}", product.Price)</p>
-        <p>Stock: @product.StockQuantity</p>
+        <p>@L["PriceLabel"]: @($"LYD {product.Price:N2}")</p>
+        <p>@L["StockLabel"]: @product.StockQuantity</p>
 
         @* Size selector and add to cart *@
-        @if (!string.IsNullOrWhiteSpace(product.SizesCsv))
-        {
-            <div class="mt-2">
-                <MudSelect T="string" @bind-Value="selectedSize" Label="Size" Dense="true" Style="min-width:140px" Placeholder="-- choose size --">
-                    @foreach (var s in product.SizesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()))
-                    {
-                        <MudSelectItem T="string" Value="@s">@s</MudSelectItem>
-                    }
-                </MudSelect>
-            </div>
-        }
+            @if (!string.IsNullOrWhiteSpace(product.SizesCsv))
+            {
+                <div class="mt-2">
+                    <MudSelect T="string" @bind-Value="selectedSize" Label="@L["Size"]" Dense="true" Style="min-width:140px" Placeholder="@L["ChooseSize"]">
+                        @foreach (var s in product.SizesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()))
+                        {
+                            <MudSelectItem T="string" Value="@s">@s</MudSelectItem>
+                        }
+                    </MudSelect>
+                </div>
+            }
 
         <div class="mt-2">
-            <MudNumericField T="int" Label="Quantity" @bind-Value="qty" Min="1" Dense="true" Style="width:120px" />
+            <MudNumericField T="int" Label="@L["Quantity"]" @bind-Value="qty" Min="1" Dense="true" Style="width:120px" />
         </div>
 
         <div class="mt-3 d-flex" style="gap:8px;">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddToCart">Add to cart</MudButton>
-            <MudButton Variant="Variant.Outlined" OnClick="BackToShop">Back to shop</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddToCart">@L["AddToCart"]</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="BackToShop">@L["BackToShop"]</MudButton>
         </div>
     </div>
 }
@@ -70,19 +71,19 @@ else
         {
             if (!string.IsNullOrEmpty(product.SizesCsv) && string.IsNullOrEmpty(selectedSize))
             {
-                Snackbar.Add("Please select a size", Severity.Warning);
+                Snackbar.Add(L["PleaseSelectSize"], Severity.Warning);
                 return;
             }
 
             var sessionId = await CartSession.GetOrCreateSessionIdAsync();
             var cart = await CartService.GetOrCreateCartAsync(sessionId);
             await CartService.AddToCartAsync(cart, product.Id, qty, null, string.IsNullOrEmpty(selectedSize) ? null : selectedSize);
-            Snackbar.Add("Added to cart", Severity.Success);
+            Snackbar.Add(L["AddedToCart"], Severity.Success);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            Snackbar.Add("Failed to add to cart", Severity.Error);
+            Snackbar.Add(L["FailedAddToCart"], Severity.Error);
         }
     }
 }

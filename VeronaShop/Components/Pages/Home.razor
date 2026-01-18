@@ -32,7 +32,7 @@
                 </div>
                 <div class="pa-2">
                     <MudText Typo="Typo.h6">@c.Name</MudText>
-                    <MudText Typo="Typo.subtitle2">@string.Format(new System.Globalization.CultureInfo("en-LY"), "{0:C}", c.Price)</MudText>
+                    <MudText Typo="Typo.subtitle2">@($"LYD {c.Price:N2}")</MudText>
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="NavigateToShop">@L["ShopNow"]</MudButton>
                 </div>
             </div>
@@ -98,8 +98,8 @@
         carouselProducts = await db.Products.Include(p => p.Images).OrderByDescending(p => p.CreatedAt).Take(5).ToListAsync();
         promotions = new List<(string, string)>
         {
-            ("Winter Sale", "Up to 50% off selected items"),
-            ("Free Shipping", "Free shipping for orders over $50"),
+            (L["PromoWinterSale"], L["PromoWinterDescription"]),
+            (L["PromoFreeShipping"], L["PromoShippingDescription"]),
         };
         posts = new List<(string, string)>();
     }

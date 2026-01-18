@@ -6,7 +6,7 @@
 @using Microsoft.Extensions.DependencyInjection
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject VeronaShop.Services.CartService CartService
-@inject VeronaShop.Services.IEmailSender EmailSender
+@inject VeronaShop.Services.InvoiceService InvoiceService
 @inject NavigationManager NavigationManager
 @inject VeronaShop.Services.CartSessionService CartSession
 @inject Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> UserManager
@@ -16,8 +16,9 @@
 @using System.Linq
 @using VeronaShop.Data
 @rendermode InteractiveServer
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 
-<h3>Checkout</h3>
+<h3>@L["Checkout"]</h3>
 
 @if (cart == null)
 {
@@ -25,7 +26,7 @@
 }
 else if (!cart.Items.Any())
 {
-    <MudPaper Class="pa-4">Your cart is empty.</MudPaper>
+    <MudPaper Class="pa-4">@L["CartEmpty"]</MudPaper>
 }
 else
 {
@@ -41,22 +42,22 @@ else
                 }
             </div>
             <div class="d-flex justify-space-between mt-4">
-                <div>Subtotal</div>
+                <div>@L["Subtotal"]</div>
                 <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity))</div>
             </div>
             <div class="d-flex justify-space-between">
-                <div>Shipping</div>
+                <div>@L["Shipping"]</div>
                 <div>@(0m)</div>
             </div>
             <hr />
             <div class="d-flex justify-space-between font-weight-bold">
-                <div>Total</div>
+                <div>@L["Total"]</div>
                 <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity))</div>
             </div>
         </MudCardContent>
         <MudCardActions>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PlaceOrder">Place order</MudButton>
-        <MudButton Variant="Variant.Text" OnClick="BackToCart">Back to cart</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PlaceOrder">@L["PlaceOrder"]</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="BackToCart">@L["BackToCart"]</MudButton>
         </MudCardActions>
     </MudCard>
 }
@@ -87,7 +88,7 @@ else
         var authState = await authenticationStateTask;
         if (authState?.User?.Identity?.IsAuthenticated != true)
         {
-            Snackbar.Add("You must sign in to place an order.", Severity.Warning);
+            Snackbar.Add(L["SignInToPlaceOrder"], Severity.Warning);
             NavigationManager.NavigateTo($"/account/login?returnUrl={Uri.EscapeDataString("/checkout")}", true);
             return;
         }
@@ -128,7 +129,7 @@ else
             // No guest checkout: ensure a customer exists for the authenticated user
             if (customer == null)
             {
-                Snackbar.Add("Your account is missing a customer profile. Creating one now.", Severity.Info);
+                Snackbar.Add(L["MissingCustomerProfile"], Severity.Info);
                 customer = new VeronaShop.Data.Entites.Customer
                 {
                     Name = user.DisplayName ?? user.UserName ?? "Customer",
@@ -184,7 +185,7 @@ else
                 IssuedAt = DateTimeOffset.UtcNow,
                 Amount = order.TotalAmount,
                 Email = customer.Email ?? "customer@local",
-                Notes = "Invoice for your order"
+                Notes = L["InvoiceNote"]
             };
 
             db.Invoices.Add(invoice);
@@ -222,10 +223,10 @@ else
             if (storedCart != null) db.Carts.Remove(storedCart);
             await db.SaveChangesAsync();
 
-            // send email (outside DB context)
+            // send email with invoice attachment (outside DB context)
             try
             {
-                await EmailSender.SendEmailAsync(customer.Email ?? "customer@local", "Your invoice", $"Invoice for order {order.OrderNumber}");
+                await InvoiceService.SendInvoiceAsync(invoice);
             }
             catch { }
 
@@ -310,7 +311,7 @@ else
             }
             catch { }
 
-            Snackbar.Add($"Order {order.OrderNumber} placed", Severity.Success);
+            Snackbar.Add(string.Format(L["OrderPlaced"], order.OrderNumber), Severity.Success);
         }
 
         NavigationManager.NavigateTo("/");

@@ -12,21 +12,22 @@
 @inject IConfiguration Configuration
 @using MudBlazor
 @using Microsoft.AspNetCore.Components.Web
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 
 <MudContainer Class="mt-6">
     <MudPaper Class="pa-4 mx-auto" Style="max-width:720px;">
        
 
         <MudPaper Class="pa-4 mt-4">
-            <MudText Typo="Typo.h6">Customer Details</MudText>
+            <MudText Typo="Typo.h6">@L["CustomerDetails"]</MudText>
             
             @if (!editingCustomer)
             {
                 @if (customer == null)
                 {
-                    <MudText>No customer profile linked to this account.</MudText>
+                    <MudText>@L["NoCustomerProfile"]</MudText>
                     <div class="mt-2">
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartCreateCustomer">Create profile</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartCreateCustomer">@L["CreateProfile"]</MudButton>
                     </div>
                 }
             <!-- cleaned UI: hidden debug info -->
@@ -34,16 +35,16 @@
                 {
                     <div class="d-flex justify-space-between align-center">
                         <div></div>
-                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="StartEditCustomer">Edit</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="StartEditCustomer">@L["Edit"]</MudButton>
                     </div>
                     <MudGrid Class="mt-2">
-                        <MudItem xs="12" sm="6"> <MudText><strong>Name:</strong> @customer.Name</MudText> </MudItem>
-                        <MudItem xs="12" sm="6"> <MudText><strong>Email:</strong> @customer.Email</MudText> </MudItem>
-                        <MudItem xs="12" sm="6"> <MudText><strong>Phone:</strong> @customer.Phone</MudText> </MudItem>
-                        <MudItem xs="12"> <MudText><strong>Address:</strong> @customer.Address</MudText> </MudItem>
-                        <MudItem xs="12" sm="4"> <MudText><strong>City:</strong> @customer.City</MudText> </MudItem>
-                        <MudItem xs="12" sm="4"> <MudText><strong>Region:</strong> @customer.Region</MudText> </MudItem>
-                        <MudItem xs="12" sm="4"> <MudText><strong>Country:</strong> @customer.Country</MudText> </MudItem>
+                        <MudItem xs="12" sm="6"> <MudText><strong>@L["NameLabel"]</strong> @customer.Name</MudText> </MudItem>
+                        <MudItem xs="12" sm="6"> <MudText><strong>@L["EmailLabel"]</strong> @customer.Email</MudText> </MudItem>
+                        <MudItem xs="12" sm="6"> <MudText><strong>@L["PhoneLabel"]</strong> @customer.Phone</MudText> </MudItem>
+                        <MudItem xs="12"> <MudText><strong>@L["AddressLabel"]</strong> @customer.Address</MudText> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudText><strong>@L["CityLabel"]</strong> @customer.City</MudText> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudText><strong>@L["RegionLabel"]</strong> @customer.Region</MudText> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudText><strong>@L["CountryLabel"]</strong> @customer.Country</MudText> </MudItem>
                     </MudGrid>
                 }
             }
@@ -51,23 +52,23 @@
             {
                 <EditForm Model="customerEdit" OnValidSubmit="SaveCustomer">
                     <MudGrid Class="mt-2">
-                        <MudItem xs="12"> <MudTextField @bind-Value="customerEdit.Name" Label="Name" Required="true" /> </MudItem>
-                        <MudItem xs="12"> <MudTextField @bind-Value="customerEdit.Email" Label="Email" Required="true" /> </MudItem>
+                        <MudItem xs="12"> <MudTextField @bind-Value="customerEdit.Name" Label="@L["Name"]" Required="true" /> </MudItem>
+                        <MudItem xs="12"> <MudTextField @bind-Value="customerEdit.Email" Label="@L["Email"]" Required="true" /> </MudItem>
                         <MudItem xs="12">
                             <MudTextField T="string"
                                           Value="customerEdit.Phone"
                                           ValueChanged="@( (string v) => OnPhoneChanged(v) )"
                                           ValueExpression="@(() => customerEdit.Phone)"
-                                          Label="Phone"
+                                          Label="@L["Phone"]"
                                           @ref="phoneFieldRef" />
                         </MudItem>
-                        <MudItem xs="12"> <MudTextField @bind-Value="customerEdit.Address" Label="Address" /> </MudItem>
-                        <MudItem xs="12" sm="4"> <MudTextField @bind-Value="customerEdit.City" Label="City" /> </MudItem>
-                        <MudItem xs="12" sm="4"> <MudTextField @bind-Value="customerEdit.Region" Label="Region" /> </MudItem>
-                        <MudItem xs="12" sm="4"> <MudTextField @bind-Value="customerEdit.Country" Label="Country" /> </MudItem>
+                        <MudItem xs="12"> <MudTextField @bind-Value="customerEdit.Address" Label="@L["Address"]" /> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudTextField @bind-Value="customerEdit.City" Label="@L["City"]" /> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudTextField @bind-Value="customerEdit.Region" Label="@L["Region"]" /> </MudItem>
+                        <MudItem xs="12" sm="4"> <MudTextField @bind-Value="customerEdit.Country" Label="@L["Country"]" /> </MudItem>
                         <MudItem xs="12" Class="d-flex justify-end">
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit" Disabled="savingCustomer">@(savingCustomer ? "Saving..." : "Save")</MudButton>
-                            <MudButton Variant="Variant.Text" OnClick="CancelEditCustomer">Cancel</MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit" Disabled="savingCustomer">@(savingCustomer ? L["Saving"] : L["Save"])</MudButton>
+                            <MudButton Variant="Variant.Text" OnClick="CancelEditCustomer">@L["Cancel"]</MudButton>
                         </MudItem>
                     </MudGrid>
                 </EditForm>
@@ -141,11 +142,11 @@
         var res = await UserManager.UpdateAsync(user);
         if (res.Succeeded)
         {
-            Snackbar.Add("Profile saved", Severity.Success);
+            Snackbar.Add(L["ProfileSaved"], Severity.Success);
         }
         else
         {
-            Snackbar.Add("Failed to save profile", Severity.Error);
+            Snackbar.Add(L["ProfileSaveFailed"], Severity.Error);
         }
     }
 
@@ -214,7 +215,7 @@
                 var existing = await db.Customers.FirstOrDefaultAsync(c => c.Id == customerEdit.Id);
                 if (existing == null)
                 {
-                    Snackbar.Add("Customer not found", Severity.Error);
+                    Snackbar.Add(L["CustomerNotFound"], Severity.Error);
                     return;
                 }
                 existing.Name = customerEdit.Name;
@@ -272,12 +273,12 @@
                 try { Console.Error.WriteLine($"Failed to update ApplicationUser: {ex}"); } catch { }
             }
             try { Logger.LogInformation("Reloaded customer Id={Id}", customer?.Id); } catch { }
-            Snackbar.Add("Customer profile saved", Severity.Success);
+            Snackbar.Add(L["CustomerProfileSaved"], Severity.Success);
         }
         catch (Exception ex)
         {
             try { Logger.LogError(ex, "SaveCustomer failed"); } catch { }
-            Snackbar.Add("Failed to save customer profile", Severity.Error);
+            Snackbar.Add(L["CustomerProfileSaveFailed"], Severity.Error);
         }
         finally
         {

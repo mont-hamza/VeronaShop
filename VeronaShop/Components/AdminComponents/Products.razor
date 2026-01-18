@@ -5,15 +5,16 @@
 @using MudBlazor
 @using VeronaShop.Data
 @using VeronaShop.Data.Entites
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
 
 <MudPaper Class="pa-4">
-    <div class="d-flex justify-space-between align-center">
-        <h3>Manage Products</h3>
-        <MudTextField Placeholder="Search..." @bind-Value="search" Adornment="Adornment.Start" AdornmentIcon="Icons.Material.Filled.Search" Class="mr-2" />
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNew" Class="ml-2">Add product</MudButton>
-    </div>
+<div class="d-flex justify-space-between align-center">
+    <h3>@L["ManageProducts"]</h3>
+    <MudTextField Placeholder="@L["Search"]" @bind-Value="search" Adornment="Adornment.Start" AdornmentIcon="Icons.Material.Filled.Search" Class="mr-2" />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNew" Class="ml-2">@L["AddProduct"]</MudButton>
+</div>
 
     @if (!string.IsNullOrEmpty(message))
     {
@@ -27,13 +28,13 @@
                 <DataAnnotationsValidator />
                 <ValidationSummary />
 
-                <MudTextField @bind-Value="editingProduct.Name" Label="Name" Required="true" />
-                <MudTextField @bind-Value="editingProduct.SKU" Label="SKU" />
+                <MudTextField @bind-Value="editingProduct.Name" Label="@L["Name"]" Required="true" />
+                <MudTextField @bind-Value="editingProduct.SKU" Label="@L["SKU"]" />
                 <div class="mb-2">
-                    <label class="mud-input-label">Product image</label>
+                    <label class="mud-input-label">@L["ProductImage"]</label>
                     <div class="d-flex gap-2 align-center">
                         <InputFile OnChange="OnEditInputFileChange" />
-                        <MudText Typo="Typo.caption">Pick a photo from your device</MudText>
+                        <MudText Typo="Typo.caption">@L["PickPhoto"]</MudText>
                     </div>
                     @if (!string.IsNullOrEmpty(editingPreviewUrl))
                     {
@@ -42,15 +43,15 @@
                         </div>
                     }
                 </div>
-                <MudTextField @bind-Value="editingProduct.Price" Label="Price" InputType="InputType.Number" Required="true" />
-                <MudTextField @bind-Value="editingProduct.DiscountPrice" Label="Discount Price" InputType="InputType.Number" />
-                <MudTextField @bind-Value="editingProduct.StockQuantity" Label="Stock Quantity" InputType="InputType.Number" />
-                <MudTextField @bind-Value="editingProduct.SizesCsv" Label="Sizes (comma separated, e.g. S,M,L)" />
-                <MudCheckBox T="bool" @bind-Checked="editingProduct.IsPublished">Published</MudCheckBox>
+                <MudTextField @bind-Value="editingProduct.Price" Label="@L["Price"]" InputType="InputType.Number" Required="true" />
+                <MudTextField @bind-Value="editingProduct.DiscountPrice" Label="@L["DiscountPrice"]" InputType="InputType.Number" />
+                <MudTextField @bind-Value="editingProduct.StockQuantity" Label="@L["StockQuantity"]" InputType="InputType.Number" />
+                <MudTextField @bind-Value="editingProduct.SizesCsv" Label="@L["SizesCsvLabel"]" />
+                <MudCheckBox T="bool" @bind-Checked="editingProduct.IsPublished">@L["Published"]</MudCheckBox>
 
                 <div class="mt-2">
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
-                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="@(e => CancelEdit())">Cancel</MudButton>
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">@L["Save"]</MudButton>
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="@(e => CancelEdit())">@L["Cancel"]</MudButton>
                 </div>
             </EditForm>
         </MudPaper>
@@ -58,24 +59,24 @@
 
     <MudTable T="Product" Items="displayedProducts" Dense="true" Hover="true" Class="mt-4">
         <HeaderContent>
-            <MudTh>Id</MudTh>
-            <MudTh>Name</MudTh>
-            <MudTh>Price</MudTh>
-            <MudTh>Stock</MudTh>
-            <MudTh>Category</MudTh>
-            <MudTh>Supplier</MudTh>
+            <MudTh>@L["Id"]</MudTh>
+            <MudTh>@L["Name"]</MudTh>
+            <MudTh>@L["Price"]</MudTh>
+            <MudTh>@L["Stock"]</MudTh>
+            <MudTh>@L["Category"]</MudTh>
+            <MudTh>@L["Supplier"]</MudTh>
             <MudTh></MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Id">@context.Id</MudTd>
             <MudTd DataLabel="Name">@context.Name</MudTd>
-                <MudTd DataLabel="Price">@string.Format(new System.Globalization.CultureInfo("en-LY"), "{0:C}", context.Price)</MudTd>
+            <MudTd DataLabel="Price">@($"LYD {context.Price:N2}")</MudTd>
             <MudTd DataLabel="Stock">@context.StockQuantity</MudTd>
             <MudTd DataLabel="Category">@context.Category?.Name</MudTd>
             <MudTd DataLabel="Supplier">@context.Supplier?.CompanyName</MudTd>
             <MudTd>
-                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(e => Edit(context))">Edit</MudButton>
-                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(e => PromptDelete(context))">Delete</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(e => Edit(context))">@L["Edit"]</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(e => PromptDelete(context))">@L["Delete"]</MudButton>
             </MudTd>
         </RowTemplate>
     </MudTable>
@@ -91,9 +92,9 @@
     @if (productToDelete != null)
     {
         <MudPaper Class="pa-3 mt-3">
-            <p>Are you sure you want to delete <strong>@productToDelete.Name</strong>?</p>
-            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@(e => ConfirmDelete())">Delete</MudButton>
-            <MudButton Variant="Variant.Text" OnClick="@(e => CancelDelete())">Cancel</MudButton>
+            <p>@string.Format(L["DeleteConfirm"], productToDelete.Name)</p>
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@(e => ConfirmDelete())">@L["Delete"]</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(e => CancelDelete())">@L["Cancel"]</MudButton>
         </MudPaper>
     }
 </MudPaper>
@@ -211,7 +212,7 @@
         // validate mime
         if (!editingFile.ContentType.StartsWith("image/"))
         {
-            Snackbar.Add("Only image files are allowed", Severity.Error);
+            Snackbar.Add(L["OnlyImagesAllowed"], Severity.Error);
             return;
         }
         var buffer = new byte[editingFile.Size];
@@ -303,14 +304,14 @@
             // success
             editingProduct = null;
             await LoadProducts();
-            message = editingProduct == null ? "Product saved." : "Product saved.";
+            message = editingProduct == null ? L["ProductSaved"] : L["ProductSaved"];
             Snackbar.Add(message, Severity.Success);
         }
         catch (Exception ex)
         {
-            message = "Failed to save product.";
+            message = L["SaveProductFailed"];
             try { Logger.LogError(ex, "SaveProduct failed"); } catch { }
-            Snackbar.Add($"Failed to save product: {ex.Message}", Severity.Error);
+            Snackbar.Add($"{L["SaveProductFailed"]}: {ex.Message}", Severity.Error);
         }
     }
 
@@ -356,13 +357,13 @@
 
                     db.Products.Remove(existing);
                     await db.SaveChangesAsync();
-                    message = "Product deleted.";
+                    message = L["ProductDeleted"];
                 }
             }
             catch (Exception ex)
             {
                 try { Logger.LogError(ex, "ConfirmDelete failed"); } catch { }
-                Snackbar.Add("Failed to delete product. See logs.", Severity.Error);
+                Snackbar.Add(L["DeleteProductFailed"], Severity.Error);
             }
             productToDelete = null;
             await LoadProducts();

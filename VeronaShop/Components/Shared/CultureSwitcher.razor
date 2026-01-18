@@ -1,0 +1,15 @@
+@using System.Globalization
+@inject NavigationManager Nav
+@using MudBlazor
+
+<MudMenu Icon="@Icons.Material.Filled.Language" Color="Color.Inherit" Direction="Direction.Bottom" OffsetY="true" Dense="true" AriaLabel="Change language">
+    <MudMenuItem OnClick="@(() => ChangeCulture("en"))">English</MudMenuItem>
+    <MudMenuItem OnClick="@(() => ChangeCulture("ar"))" style="font-family:'Cairo', sans-serif">@("\u0627\u0644\u0639\u0631\u0628\u064a\u0629")</MudMenuItem>
+</MudMenu>
+
+@code {
+    private void ChangeCulture(string culture)
+    {
+        Nav.NavigateTo($"/set-culture/{culture}", forceLoad: true);
+    }
+}

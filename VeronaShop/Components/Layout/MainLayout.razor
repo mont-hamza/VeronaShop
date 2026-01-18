@@ -1,4 +1,4 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.Extensions.Localization
 @using System.Globalization
@@ -12,8 +12,11 @@
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.AspNetCore.Hosting
 
+@using Microsoft.Extensions.Logging
+@implements IAsyncDisposable
 @inject IStringLocalizer<SharedResources> L
 @inject IWebHostEnvironment Env
+@inject ILogger<MainLayout> Logger
 
 <MudThemeProvider Theme="@_theme" IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
@@ -42,11 +45,7 @@
             </Authorized>
         </AuthorizeView>
 
-        <MudMenu Icon="@Icons.Material.Filled.Language" AnchorOrigin="Origin.TopRight" TransformOrigin="Origin.TopRight">
-            <!-- language menu -->
-            <MudMenuItem OnClick='@( () => ChangeLanguage("en") )'>@L["English"]</MudMenuItem>
-            <MudMenuItem OnClick='@( () => ChangeLanguage("ar") )'>@L["Arabic"]</MudMenuItem>
-        </MudMenu>
+        <CultureSwitcher />
 
         <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" Edge="Edge.End" OnClick="GoToCart">
             <span class="mud-badge mud-badge-dot" style="position:absolute;right:6px;top:6px;background-color:var(--mud-palette-error);color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">@cartCount</span>
@@ -82,7 +81,7 @@
 <div id="blazor-error-ui" data-nosnippet>
     @L["UnhandledError"]
     <a href="." class="reload">@L["Reload"]</a>
-    <span class="dismiss">🗙</span>
+    <span class="dismiss">??</span>
 </div>
 
 @code {
@@ -112,7 +111,7 @@
             var sessionId = await CartSession.GetOrCreateSessionIdAsync();
             cartCount = await CartService.GetCartItemCountAsync(sessionId);
         }
-        catch { }
+        catch (Exception ex) { Logger.LogWarning(ex, "Failed to load initial cart count"); }
 
         // start SignalR connection for admin counts
         try
@@ -200,17 +199,20 @@
         _ = HandleMenuOpenChangedAsync(open);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         try
         {
             if (_hubConnection != null)
             {
-                _hubConnection.StopAsync().GetAwaiter().GetResult();
-                _hubConnection.DisposeAsync().GetAwaiter().GetResult();
+                await _hubConnection.StopAsync();
+                await _hubConnection.DisposeAsync();
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error disposing MainLayout");
+        }
     }
 
     protected override void OnInitialized()
@@ -343,5 +345,3 @@
         Navigation.NavigateTo($"/set-culture/{culture}", forceLoad: true);
     }
 }
-
-

@@ -8,13 +8,14 @@
 @inject VeronaShop.Services.CartSessionService CartSession
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject ILogger<Shop> Logger
 @using MudBlazor
 @using VeronaShop.Components.ProductComponents
 @inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 
 <MudContainer Class="mt-6">
     <div class="d-flex justify-space-between align-center mb-4">
-        <MudText Typo="Typo.h4">@L["ShopTitle"]</MudText>
+        <MudText Typo="Typo.h4">@L["Shop"]</MudText>
         <AuthorizeView Roles="Admin">
             <Authorized>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@NavigateToAdminProducts">@L["ManageProducts"]</MudButton>
@@ -43,7 +44,7 @@
                     <MudCardContent @onclick="() => OpenQuickView(p)" Style="cursor:pointer">
                             <MudText Typo="Typo.h6">@p.Name</MudText>
                             <MudText Typo="Typo.body2" Class="mb-2">@p.Description</MudText>
-                        <MudText Typo="Typo.subtitle1" Color="Color.Primary">@string.Format(System.Globalization.CultureInfo.CurrentCulture, "{0:C}", p.Price)</MudText>
+                        <MudText Typo="Typo.subtitle1" Color="Color.Primary">@($"LYD {p.Price:N2}")</MudText>
                         </MudCardContent>
                         <MudCardActions Class="d-flex justify-space-between">
                             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await AddToCart(p.Id))">@L["AddToCart"]</MudButton>
@@ -80,7 +81,7 @@
         {
             using var db = DbFactory.CreateDbContext();
             // Load products first without joining ProductImages. The ProductImages table may not exist until migrations are applied.
-            products = await db.Products.OrderByDescending(p => p.CreatedAt).ToListAsync();
+            products = await db.Products.Include(p => p.Category).OrderByDescending(p => p.CreatedAt).ToListAsync();
 
             try
             {
@@ -97,13 +98,13 @@
             catch (Exception imgEx)
             {
                 // If ProductImages table is missing or another error occurs, continue without images.
-                Console.Error.WriteLine("ProductImages not available: " + imgEx.Message);
+                Logger.LogWarning("ProductImages not available: {Message}", imgEx.Message);
             }
         }
         catch (Exception ex)
         {
             loadError = "Unable to load products. Please check your database connection or try again later.";
-            Console.Error.WriteLine(ex);
+            Logger.LogError(ex, "Unable to load products");
         }
     }
 
@@ -125,7 +126,7 @@
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"AddToCart failed: {ex}");
+            Logger.LogError(ex, "AddToCart failed");
             Snackbar.Add("Failed to add to cart", Severity.Error);
         }
     }
@@ -135,9 +136,8 @@
         if (p == null) return "images/placeholder.svg";
         if (p.Images != null && p.Images.Any())
         {
-            // shuffle by picking a random image each render
-            var rnd = new Random();
-            return p.Images.OrderBy(i => rnd.Next()).First().Url;
+            // improved: use the first image (stable) instead of random shuffling on every render
+            return p.Images.First().Url;
         }
         return string.IsNullOrEmpty(p.ImageUrl) ? "images/placeholder.svg" : p.ImageUrl;
     }

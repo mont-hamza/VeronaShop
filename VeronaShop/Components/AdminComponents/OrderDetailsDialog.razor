@@ -28,13 +28,13 @@
                     <MudTd>@context.ProductName</MudTd>
                     <MudTd>@(string.IsNullOrEmpty(context.SizeName) ? "-" : context.SizeName)</MudTd>
                     <MudTd>@context.Quantity</MudTd>
-                    <MudTd>@context.UnitPrice</MudTd>
-                    <MudTd>@(context.UnitPrice * context.Quantity)</MudTd>
+                    <MudTd>@($"LYD {context.UnitPrice:N2}")</MudTd>
+                    <MudTd>@($"LYD {(context.UnitPrice * context.Quantity):N2}")</MudTd>
                 </RowTemplate>
             </MudTable>
 
             <div class="d-flex justify-end mt-3">
-                <MudText Typo="Typo.h6">Total: @Order.TotalAmount</MudText>
+                <MudText Typo="Typo.h6">Total: @($"LYD {Order.TotalAmount:N2}")</MudText>
             </div>
         }
     </DialogContent>

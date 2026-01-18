@@ -3,6 +3,7 @@
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
 @using VeronaShop.Data
+@using VeronaShop.Models
 @using VeronaShop.Data.Entites
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
@@ -10,14 +11,16 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject VeronaShop.Services.IEmailSender EmailSender
 @inject IJSRuntime JSRuntime
 @inject RoleManager<IdentityRole<int>> RoleManager
 @using Microsoft.Extensions.Logging
 @inject ILogger<Register> Logger
 @using MudBlazor
+@inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 
 <MudPaper Class="pa-6 mx-auto" Style="max-width:560px;">
-    <MudText Typo="Typo.h5" Class="mb-3">Create your account</MudText>
+    <MudText Typo="Typo.h5" Class="mb-3">@L["Register"]</MudText>
     @if (!string.IsNullOrEmpty(statusMessage))
     {
         <MudAlert Severity="Severity.Info" Elevation="0" Class="mb-2">@statusMessage</MudAlert>
@@ -32,46 +35,46 @@
 
         <MudGrid>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="registerModel.FirstName" Label="First name" Required="true" />
+                <MudTextField @bind-Value="registerModel.FirstName" Label="@L["FirstName"]" Required="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="registerModel.LastName" Label="Last name" Required="true" />
+                <MudTextField @bind-Value="registerModel.LastName" Label="@L["LastName"]" Required="true" />
             </MudItem>
 
             <MudItem xs="12">
-                <MudTextField @bind-Value="registerModel.UserName" Label="Username" Required="true" />
+                <MudTextField @bind-Value="registerModel.UserName" Label="@L["Username"]" Required="true" />
             </MudItem>
 
             <MudItem xs="12">
-                <MudTextField @bind-Value="registerModel.Email" Label="Email" Required="true" />
+                <MudTextField @bind-Value="registerModel.Email" Label="@L["Email"]" Required="true" />
             </MudItem>
 
             <MudItem xs="12">
-                <MudTextField @bind-Value="registerModel.Phone" Label="Phone" />
+                <MudTextField @bind-Value="registerModel.Phone" Label="@L["Phone"]" />
             </MudItem>
 
             <MudItem xs="12">
-                <MudTextField @bind-Value="registerModel.Password" Label="Password" InputType="InputType.Password" Required="true" />
+                <MudTextField @bind-Value="registerModel.Password" Label="@L["Password"]" InputType="InputType.Password" Required="true" />
             </MudItem>
 
             <MudItem xs="12">
-                <MudTextField @bind-Value="registerModel.Address" Label="Address" />
+                <MudTextField @bind-Value="registerModel.Address" Label="@L["Address"]" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="registerModel.City" Label="City" />
+                <MudTextField @bind-Value="registerModel.City" Label="@L["City"]" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="registerModel.Region" Label="State / Region" />
+                <MudTextField @bind-Value="registerModel.Region" Label="@L["Region"]" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="registerModel.Country" Label="Country" />
+                <MudTextField @bind-Value="registerModel.Country" Label="@L["Country"]" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudDatePicker @bind-Date="registerModel.DateOfBirth" Label="Date of birth" />
+                <MudDatePicker @bind-Date="registerModel.DateOfBirth" Label="@L["DateOfBirth"]" />
             </MudItem>
 
             <MudItem xs="12" Class="d-flex justify-end mt-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit">Create account</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit">@L["Register"]</MudButton>
                 
             </MudItem>
         </MudGrid>
@@ -80,38 +83,15 @@
 </MudPaper>
 
 @code {
-    private RegisterModel registerModel = new RegisterModel();
+private RegisterModel registerModel = new RegisterModel();
 
-    public class RegisterModel
-    {
-        [Required]
-        public string UserName { get; set; }
-        [Required, EmailAddress]
-        public string Email { get; set; }
-        [Required, MinLength(6)]
-        public string Password { get; set; }
-        public string DisplayName { get; set; }
-
-        public string FirstName { get; set; }
-        public string LastName { get; set; }
-
-        public string Address { get; set; }
-        public string City { get; set; }
-        public string Region { get; set; }
-        public string Country { get; set; }
-        public DateTime? DateOfBirth { get; set; }
-        public string Phone { get; set; }
-    }
-
-    
-
-    private string errorMessage;
+private string errorMessage;
     private string statusMessage;
 
     private async Task HandleRegister()
     {
         try { Logger.LogInformation("HandleRegister invoked for {User}", registerModel?.UserName); } catch { }
-        statusMessage = "Submitting registration...";
+        statusMessage = L["SubmittingRegistration"];
         StateHasChanged();
         var user = new VeronaShop.Data.ApplicationUser
         {
@@ -126,13 +106,13 @@
             Region = registerModel.Region,
             Country = registerModel.Country,
             DateOfBirth = registerModel.DateOfBirth,
-            EmailConfirmed = true
+            EmailConfirmed = false
         };
 
         var result = await UserManager.CreateAsync(user, registerModel.Password);
         if (result.Succeeded)
         {
-            statusMessage = "User created; creating customer record...";
+            statusMessage = L["UserCreated"];
             StateHasChanged();
             // create Customer record
             var customer = new VeronaShop.Data.Entites.Customer
@@ -172,35 +152,31 @@
             {
                 try { Logger.LogWarning(ex, "Failed to assign Customer role to {User}", user.UserName); } catch { }
             }
-            statusMessage = "Account created — signing in...";
-            StateHasChanged();
-            Snackbar.Add("Account created — signing in...", Severity.Info);
+            // Send confirmation email with token/link
             try
             {
-                // try to use username first, fallback to email
-                var loginField = user.UserName ?? user.Email;
-                var sessionId = string.Empty;
-                try { sessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "verona_cart_id"); } catch { }
-                await JSRuntime.InvokeVoidAsync("submitFallbackLogin", loginField, registerModel.Password, "/", sessionId);
-                statusMessage = "Sign-in requested; redirecting...";
-                StateHasChanged();
-                return;
+                var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
+                var encoded = System.Net.WebUtility.UrlEncode(code);
+                var callbackUrl = Navigation.ToAbsoluteUri($"/account/confirm?userId={user.Id}&code={encoded}").ToString();
+                var body = $"<p>Please confirm your account by clicking <a href='{callbackUrl}'>here</a>.</p><p>Or use this code: <b>{System.Net.WebUtility.HtmlEncode(code)}</b></p>";
+                await EmailSender.SendEmailAsync(user.Email, L["ConfirmEmailSubject"], body);
+                Snackbar.Add(L["ConfirmationEmailSent"], Severity.Info);
             }
             catch (Exception ex)
             {
-                try { Logger.LogError(ex, "Fallback login failed for {User}", user.UserName); } catch { }
-                statusMessage = "Account created but automatic sign-in failed. Please sign in manually.";
-                Snackbar.Add("Account created. Please sign in manually.", Severity.Warning);
-                Navigation.NavigateTo("/account/login");
-                return;
+                try { Logger.LogWarning(ex, "Failed to send confirmation email for {User}", user.UserName); } catch { }
+                Snackbar.Add(L["ConfirmationEmailFailed"], Severity.Warning);
             }
+
+            Navigation.NavigateTo($"/account/confirm?userId={user.Id}");
+            return;
         }
         else
         {
             var errs = string.Join("; ", result.Errors.Select(e => e.Description));
             Console.Error.WriteLine($"User creation failed: {errs}");
             errorMessage = errs;
-            statusMessage = "Registration failed";
+            statusMessage = L["RegistrationFailed"];
             try { Logger.LogWarning("User creation failed: {Errors}", errs); } catch { }
         }
 

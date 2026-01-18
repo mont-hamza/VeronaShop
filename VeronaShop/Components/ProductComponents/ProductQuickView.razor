@@ -31,19 +31,24 @@
             </div>
         </div>
         <div style="flex:1 1 320px;min-width:260px;">
-            <MudText Typo="Typo.h6" Color="Color.Primary">@string.Format(System.Globalization.CultureInfo.CurrentCulture, "{0:C}", Product?.Price)</MudText>
+            <MudText Typo="Typo.h6">@Product?.Name</MudText>
+            <MudText Typo="Typo.subtitle1" Color="Color.Primary">@($"LYD {Product?.Price:N2}")</MudText>
+            @if (Product?.DiscountPrice is decimal dp)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@($"Discount: LYD {dp:N2}")</MudText>
+            }
             <MudText Typo="Typo.body1" Class="mt-2">@Product?.Description</MudText>
-            <div class="mt-4 d-flex" style="gap:8px;align-items:center;">
+            <MudText Typo="Typo.body2" Class="mt-2">@($"Stock: {Product?.StockQuantity}")</MudText>
+            @if (!string.IsNullOrWhiteSpace(Product?.Category?.Name))
+            {
+                <MudText Typo="Typo.body2">@($"Category: {Product.Category.Name}")</MudText>
+            }
             @if (AvailableSizes.Any())
-                {
-                    <MudSelect T="string" @bind-Value="selectedSize" Label="@L["Size"]" Dense="true" Style="min-width:120px;">
-                        @foreach (var s in AvailableSizes)
-                        {
-                            <MudSelectItem T="string" Value="@s">@s</MudSelectItem>
-                        }
-                    </MudSelect>
-                }
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await AddToCart())">@L["AddToCart"]</MudButton>
+            {
+                <MudText Typo="Typo.body2" Class="mt-2">@("Sizes: " + string.Join(", ", AvailableSizes))</MudText>
+            }
+            <div class="mt-4 d-flex" style="gap:8px;align-items:center;">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await AddToCart())">@L["AddToCart"]</MudButton>
             </div>
         </div>
     </div>
@@ -57,35 +62,28 @@
     private async Task AddToCart()
     {
         if (Product == null) return;
+        var success = false;
         try
         {
             var sessionId = await CartSession.GetOrCreateSessionIdAsync();
             var cart = await CartService.GetOrCreateCartAsync(sessionId);
-            int? sizeId = null;
-            string? sizeName = null;
-            if (!string.IsNullOrEmpty(selectedSize))
-            {
-                sizeName = selectedSize;
-            }
-            else if (AvailableSizes.Any())
-            {
-                Snackbar.Add(L["PleaseSelectSize"], Severity.Warning);
-                return;
-            }
-            await CartService.AddToCartAsync(cart, Product.Id, 1, sizeId, sizeName);
+            await CartService.AddToCartAsync(cart, Product.Id, 1, null, null);
             Snackbar.Add(L["AddedToCart"], Severity.Success);
-            DialogReference.Close();
+            success = true;
         }
         catch
         {
             Snackbar.Add(L["FailedAddToCart"], Severity.Error);
         }
+
+        if (success)
+        {
+            try { DialogReference?.Close(); } catch { }
+        }
     }
 
     private List<string> AvailableSizes =>
         string.IsNullOrWhiteSpace(Product?.SizesCsv) ? new List<string>() : Product.SizesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
-
-    private string selectedSize;
 
     private void Close()
     {

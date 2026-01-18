@@ -34,16 +34,32 @@ else
             <MudTd><img src="@(string.IsNullOrEmpty(context.Product.ImageUrl) ? "images/placeholder.svg" : context.Product.ImageUrl)" style="width:60px;height:60px;object-fit:cover" /></MudTd>
             <MudTd>
                 <a href="/product/@context.ProductId">@context.Product.Name</a>
-                @if (!string.IsNullOrEmpty(context.SizeName))
+                @if (GetSizes(context.Product).Any())
+                {
+                    <div class="mt-1" style="min-width:140px;">
+                        <MudSelect T="string"
+                                   Value="context.SizeName"
+                                   ValueChanged="@(async val => await UpdateSize(context.Id, val))"
+                                   Dense="true"
+                                   CloseMenuOnItemClick="true"
+                                   Placeholder="@L["Size"]">
+                            @foreach (var s in GetSizes(context.Product))
+                            {
+                                <MudSelectItem T="string" Value="@s">@s</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(context.SizeName))
                 {
                     <div class="mud-caption">Size: @context.SizeName</div>
                 }
             </MudTd>
-            <MudTd>@(context.UnitPrice)</MudTd>
+            <MudTd>@($"LYD {context.UnitPrice:N2}")</MudTd>
             <MudTd>
                 <MudNumericField T="int" @bind-Value="context.Quantity" Min="1" Immediate="true" OnBlur="@(async () => await UpdateQuantity(context.Id, context.Quantity))" />
             </MudTd>
-            <MudTd>@(context.UnitPrice * context.Quantity)</MudTd>
+            <MudTd>@($"LYD {(context.UnitPrice * context.Quantity):N2}")</MudTd>
             <MudTd>
                 <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="@(async ()=> await Remove(context.Id))">@L["Remove"]</MudButton>
             </MudTd>
@@ -53,28 +69,28 @@ else
     <div class="d-flex justify-end mt-4">
         <MudPaper Class="pa-4" Style="min-width:320px;">
             <div class="d-flex justify-space-between">
-                <div>Subtotal</div>
-                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity))</div>
+                <div>@L["Subtotal"]</div>
+                <div>@($"LYD {cart.Items.Sum(i => i.UnitPrice * i.Quantity):N2}")</div>
             </div>
             <div class="d-flex justify-space-between mt-2">
-                <div>Shipping</div>
-                <div>@(0m)</div>
+                <div>@L["Shipping"]</div>
+                <div>@("LYD 0.00")</div>
             </div>
             <hr />
             <div class="d-flex justify-space-between font-weight-bold">
-                <div>Total</div>
-                <div>@(cart.Items.Sum(i => i.UnitPrice * i.Quantity))</div>
+                <div>@L["Total"]</div>
+                <div>@($"LYD {cart.Items.Sum(i => i.UnitPrice * i.Quantity):N2}")</div>
             </div>
 
             @if (isAuthenticated)
             {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" OnClick="GoToCheckout">Proceed to checkout</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" OnClick="GoToCheckout">@L["ProceedToCheckout"]</MudButton>
             }
             else
             {
                 <div class="mt-4">
-                    <p>Please <a href="/account/login?returnUrl=/checkout">log in</a> to proceed to checkout.</p>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RedirectToLogin">Log in</MudButton>
+                    <p>@L["Please"] <a href="/account/login?returnUrl=/checkout">@L["LogIn"]</a> @L["ToProceedToCheckout"]</p>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RedirectToLogin">@L["LogIn"]</MudButton>
                 </div>
             }
         </MudPaper>
@@ -101,12 +117,12 @@ else
             await CartService.RemoveItemAsync(id);
             var sessionId = await CartSession.GetOrCreateSessionIdAsync();
             cart = await CartService.GetOrCreateCartAsync(sessionId);
-            Snackbar.Add("Item removed from cart", Severity.Success);
+            Snackbar.Add(L["ItemRemoved"], Severity.Success);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            Snackbar.Add("Failed to remove item", Severity.Error);
+            Snackbar.Add(L["ItemRemoveFailed"], Severity.Error);
         }
     }
 
@@ -117,13 +133,35 @@ else
             await CartService.UpdateItemQuantityAsync(cartItemId, quantity);
             var sessionId = await CartSession.GetOrCreateSessionIdAsync();
             cart = await CartService.GetOrCreateCartAsync(sessionId);
-            Snackbar.Add("Cart updated", Severity.Success);
+            Snackbar.Add(L["CartUpdated"], Severity.Success);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            Snackbar.Add("Failed to update cart", Severity.Error);
+            Snackbar.Add(L["CartUpdateFailed"], Severity.Error);
         }
+    }
+
+    private async Task UpdateSize(int cartItemId, string size)
+    {
+        try
+        {
+            await CartService.UpdateItemSizeAsync(cartItemId, size);
+            var sessionId = await CartSession.GetOrCreateSessionIdAsync();
+            cart = await CartService.GetOrCreateCartAsync(sessionId);
+            Snackbar.Add(L["CartUpdated"], Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            Snackbar.Add(L["CartUpdateFailed"], Severity.Error);
+        }
+    }
+
+    private IEnumerable<string> GetSizes(VeronaShop.Data.Entites.Product product)
+    {
+        if (product == null || string.IsNullOrWhiteSpace(product.SizesCsv)) return Enumerable.Empty<string>();
+        return product.SizesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim());
     }
 
     private void RedirectToLogin()

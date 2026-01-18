@@ -8,43 +8,76 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components
 @using Microsoft.Extensions.Localization
+@using MudBlazor
 @inject IStringLocalizer<SharedResources> L
 @inject ISnackbar Snackbar
 
 <PageTitle>@L["OrderDetailsTitle"]</PageTitle>
 
-<div class="order-details-page">
+<MudContainer Class="mt-4">
     @if (order == null)
     {
-        <p>@L["Loading"]</p>
+        <MudProgressCircular Indeterminate="true" />
     }
     else
     {
-        <h3>@L["Order"] @order.OrderNumber</h3>
-        <div><strong>@L["Placed"]</strong> @order.OrderDate.ToLocalTime().ToString("g")</div>
-        <div><strong>@L["Status"]</strong> @order.Status.ToString()</div>
-        <div><strong>@L["Total"]</strong> @order.TotalAmount.ToString("C")</div>
-
-        <h4>@L["Items"]</h4>
-        <div class="order-thumbs">
-            @foreach (var it in order.OrderProducts)
-            {
-                var imgUrl = it.Product?.Images?.OrderBy(i => i.SortOrder).FirstOrDefault()?.Url ?? it.Product?.ImageUrl ?? "/images/placeholder.svg";
+        <MudPaper Class="pa-4 mb-4">
+            <div class="d-flex justify-space-between align-center">
                 <div>
-                    <img class="order-thumb" src="@imgUrl" />
-                    <div style="max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.9rem">@it.ProductName</div>
-                    <div class="muted">@it.Quantity x @it.UnitPrice.ToString("C")</div>
+                    <MudText Typo="Typo.h5">@L["Order"] @order.OrderNumber</MudText>
+                    <MudText Typo="Typo.body2" Class="mt-1">@L["Placed"]: @order.OrderDate.ToLocalTime().ToString("f")</MudText>
+                    <MudText Typo="Typo.body2">@L["Total"]: @($"LYD {order.TotalAmount:N2}")</MudText>
                 </div>
-            }
-        </div>
+                <div class="d-flex" style="gap:8px;align-items:center;">
+                    <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled">@order.Status.ToString()</MudChip>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrintInvoice" StartIcon="@Icons.Material.Filled.Print">@L["Print"]</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="DownloadInvoice" StartIcon="@Icons.Material.Filled.Download">@L["DownloadPDF"]</MudButton>
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="EmailInvoice" StartIcon="@Icons.Material.Filled.Email">@L["EmailInvoice"]</MudButton>
+                </div>
+            </div>
+        </MudPaper>
 
-        <div style="margin-top:12px">
-            <button class="mud-button-root mud-button" @onclick="PrintInvoice">@L["Print"]</button>
-            <button class="mud-button-root mud-button" @onclick="DownloadInvoice">@L["DownloadPDF"]</button>
-            <button class="mud-button-root mud-button" @onclick="EmailInvoice">@L["EmailInvoice"]</button>
-        </div>
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-2">@L["Items"]</MudText>
+            <MudTable Dense="true" Hover="true" Bordered="false" Striped="true" Items="order.OrderProducts">
+                <HeaderContent>
+                    <MudTh></MudTh>
+                    <MudTh>@L["Product"]</MudTh>
+                    <MudTh align="Align.Right">@L["Price"]</MudTh>
+                    <MudTh align="Align.Right">@L["Quantity"]</MudTh>
+                    <MudTh>@L["Size"]</MudTh>
+                    <MudTh align="Align.Right">@L["Line"]</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd><img src="@GetImageUrl(context)" style="width:64px;height:64px;object-fit:cover;border-radius:6px;" /></MudTd>
+                    <MudTd>@context.ProductName</MudTd>
+                    <MudTd Align="Align.Right">@($"LYD {context.UnitPrice:N2}")</MudTd>
+                    <MudTd Align="Align.Right">@context.Quantity</MudTd>
+                    <MudTd>@context.SizeName</MudTd>
+                    <MudTd Align="Align.Right">@($"LYD {(context.UnitPrice * context.Quantity):N2}")</MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <div class="d-flex justify-end mt-3">
+                <MudPaper Class="pa-3" Style="min-width:260px;">
+                    <div class="d-flex justify-space-between">
+                        <MudText>@L["Subtotal"]</MudText>
+                        <MudText>@($"LYD {order.OrderProducts.Sum(x => x.UnitPrice * x.Quantity):N2}")</MudText>
+                    </div>
+                    <div class="d-flex justify-space-between mt-1">
+                        <MudText>@L["Shipping"]</MudText>
+                        <MudText>@($"LYD {order.ShippingCost:N2}")</MudText>
+                    </div>
+                    <MudDivider Class="my-2" />
+                    <div class="d-flex justify-space-between">
+                        <MudText Typo="Typo.subtitle1">@L["Total"]</MudText>
+                        <MudText Typo="Typo.subtitle1" Color="Color.Primary">@($"LYD {order.TotalAmount:N2}")</MudText>
+                    </div>
+                </MudPaper>
+            </div>
+        </MudPaper>
     }
-</div>
+</MudContainer>
 
 @code {
     [Parameter] public int orderId { get; set; }
@@ -114,5 +147,18 @@
             }
         }
         catch { }
+    }
+
+    private string GetImageUrl(OrderProduct op)
+    {
+        try
+        {
+            if (op?.Product?.Images != null && op.Product.Images.Any())
+                return op.Product.Images.OrderBy(i => i.SortOrder).First().Url;
+            if (!string.IsNullOrEmpty(op?.Product?.ImageUrl))
+                return op.Product.ImageUrl;
+        }
+        catch { }
+        return "/images/placeholder.svg";
     }
 }
