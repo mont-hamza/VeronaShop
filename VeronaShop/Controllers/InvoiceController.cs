@@ -35,11 +35,11 @@ namespace VeronaShop.Controllers
             var font = new XFont("Verdana", 12);
             gfx.DrawString($"Invoice for order {order.OrderNumber}", font, XBrushes.Black, new XRect(40, 40, page.Width - 80, 20));
             gfx.DrawString($"Placed: {order.OrderDate:u}", font, XBrushes.Black, new XRect(40, 60, page.Width - 80, 20));
-            gfx.DrawString($"Total: {order.TotalAmount:C}", font, XBrushes.Black, new XRect(40, 80, page.Width - 80, 20));
+            gfx.DrawString($"Total: LYD {order.TotalAmount:N2}", font, XBrushes.Black, new XRect(40, 80, page.Width - 80, 20));
             int y = 110;
             foreach (var it in order.OrderProducts)
             {
-                gfx.DrawString($"- {it.ProductName} x {it.Quantity} @ {it.UnitPrice:C}", font, XBrushes.Black, new XRect(40, y, page.Width - 80, 20));
+                gfx.DrawString($"- {it.ProductName} x {it.Quantity} @ LYD {it.UnitPrice:N2}", font, XBrushes.Black, new XRect(40, y, page.Width - 80, 20));
                 y += 20;
             }
 
@@ -65,7 +65,7 @@ namespace VeronaShop.Controllers
             int y = 80;
             foreach (var it in order.OrderProducts)
             {
-                gfx.DrawString($"- {it.ProductName} x {it.Quantity} @ {it.UnitPrice:C}", font, XBrushes.Black, new XRect(40, y, page.Width - 80, 20));
+                gfx.DrawString($"- {it.ProductName} x {it.Quantity} @ LYD {it.UnitPrice:N2}", font, XBrushes.Black, new XRect(40, y, page.Width - 80, 20));
                 y += 20;
             }
             using var ms = new System.IO.MemoryStream();
@@ -79,14 +79,14 @@ namespace VeronaShop.Controllers
             var html = $@"
                 <h2>Invoice for order {order.OrderNumber}</h2>
                 <p>Placed: {order.OrderDate:u}</p>
-                <p>Total: {order.TotalAmount:C}</p>
+                <p>Total: LYD {order.TotalAmount:N2}</p>
                 <table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse'>
                     <thead><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Line</th></tr></thead>
                     <tbody>
             ";
             foreach (var it in order.OrderProducts)
             {
-                html += $"<tr><td>{System.Net.WebUtility.HtmlEncode(it.ProductName)}</td><td>{it.Quantity}</td><td>{it.UnitPrice:C}</td><td>{(it.UnitPrice * it.Quantity):C}</td></tr>";
+                html += $"<tr><td>{System.Net.WebUtility.HtmlEncode(it.ProductName)}</td><td>{it.Quantity}</td><td>LYD {it.UnitPrice:N2}</td><td>LYD {(it.UnitPrice * it.Quantity):N2}</td></tr>";
             }
             html += "</tbody></table>";
 

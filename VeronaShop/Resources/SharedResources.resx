@@ -213,4 +213,82 @@
   <data name="Close" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="HomeTitle" xml:space="preserve"><value>Home</value></data>
+  <data name="Shop" xml:space="preserve"><value>Shop</value></data>
+  <data name="Cart" xml:space="preserve"><value>Cart</value></data>
+  <data name="Checkout" xml:space="preserve"><value>Checkout</value></data>
+  <data name="AdminMenu" xml:space="preserve"><value>Admin</value></data>
+  <data name="Overview" xml:space="preserve"><value>Overview</value></data>
+  <data name="ProductsMenu" xml:space="preserve"><value>Products</value></data>
+  <data name="OrdersMenu" xml:space="preserve"><value>Orders</value></data>
+  <data name="CarriersMenu" xml:space="preserve"><value>Carriers</value></data>
+  <data name="DeliveriesMenu" xml:space="preserve"><value>Deliveries</value></data>
+  <data name="UsersMenu" xml:space="preserve"><value>Users</value></data>
+  <data name="AccountMenu" xml:space="preserve"><value>Account</value></data>
+  <data name="Login" xml:space="preserve"><value>Login</value></data>
+  <data name="Register" xml:space="preserve"><value>Register</value></data>
+  <data name="ShopNow" xml:space="preserve"><value>Shop Now</value></data>
+  <data name="Promotions" xml:space="preserve"><value>Promotions</value></data>
+  <data name="LatestPosts" xml:space="preserve"><value>Latest Posts</value></data>
+  <data name="ManagePosts" xml:space="preserve"><value>Manage Posts</value></data>
+  <data name="NoPostsYet" xml:space="preserve"><value>No posts yet.</value></data>
+  <data name="PromoWinterSale" xml:space="preserve"><value>Winter Sale</value></data>
+  <data name="PromoWinterDescription" xml:space="preserve"><value>Up to 50% off selected items</value></data>
+  <data name="PromoFreeShipping" xml:space="preserve"><value>Free Shipping</value></data>
+  <data name="PromoShippingDescription" xml:space="preserve"><value>Free shipping for orders over $50</value></data>
+  <data name="ManageProducts" xml:space="preserve"><value>Manage Products</value></data>
+  <data name="Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="LoadProductsError" xml:space="preserve"><value>Unable to load products.</value></data>
+  <data name="ProductNotFound" xml:space="preserve"><value>Product not found.</value></data>
+  <data name="PriceLabel" xml:space="preserve"><value>Price:</value></data>
+  <data name="StockLabel" xml:space="preserve"><value>Stock:</value></data>
+  <data name="Quantity" xml:space="preserve"><value>Quantity</value></data>
+  <data name="BackToShop" xml:space="preserve"><value>Back to Shop</value></data>
+  <data name="YourCart" xml:space="preserve"><value>Your Cart</value></data>
+  <data name="CartEmpty" xml:space="preserve"><value>Your cart is currently empty.</value></data>
+  <data name="ShopTitle" xml:space="preserve"><value>Shop</value></data>
+  <data name="ToAddProducts" xml:space="preserve"><value>to add products.</value></data>
+  <data name="Remove" xml:space="preserve"><value>Remove</value></data>
+  <data name="Subtotal" xml:space="preserve"><value>Subtotal</value></data>
+  <data name="Shipping" xml:space="preserve"><value>Shipping</value></data>
+  <data name="PlaceOrder" xml:space="preserve"><value>Place Order</value></data>
+  <data name="BackToCart" xml:space="preserve"><value>Back to Cart</value></data>
+  <data name="SignInToPlaceOrder" xml:space="preserve"><value>Sign in to place order.</value></data>
+  <data name="ProceedToCheckout" xml:space="preserve"><value>Proceed to checkout</value></data>
+  <data name="Please" xml:space="preserve"><value>Please</value></data>
+  <data name="LogIn" xml:space="preserve"><value>log in</value></data>
+  <data name="ToProceedToCheckout" xml:space="preserve"><value>to proceed to checkout.</value></data>
+  <data name="ItemRemoved" xml:space="preserve"><value>Item removed</value></data>
+  <data name="CartUpdated" xml:space="preserve"><value>Cart updated</value></data>
+  <data name="PageSize" xml:space="preserve"><value>Page size</value></data>
+  <data name="NoOrdersFound" xml:space="preserve"><value>No orders found.</value></data>
+  <data name="CarrierLabel" xml:space="preserve"><value>Carrier:</value></data>
+  <data name="ShowingPageOf" xml:space="preserve"><value>Page {0} of {1}</value></data>
+  <data name="First" xml:space="preserve"><value>First</value></data>
+  <data name="Previous" xml:space="preserve"><value>Previous</value></data>
+  <data name="Next" xml:space="preserve"><value>Next</value></data>
+  <data name="Last" xml:space="preserve"><value>Last</value></data>
+  <data name="Id" xml:space="preserve"><value>Id</value></data>
+  <data name="Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Price" xml:space="preserve"><value>Price</value></data>
+  <data name="StockQuantity" xml:space="preserve"><value>Stock</value></data>
+  <data name="Category" xml:space="preserve"><value>Category</value></data>
+  <data name="Supplier" xml:space="preserve"><value>Supplier</value></data>
+  <data name="Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="AddProduct" xml:space="preserve"><value>Add product</value></data>
+  <data name="Search" xml:space="preserve"><value>Search...</value></data>
+  <data name="DeleteConfirm" xml:space="preserve"><value>Delete {0}?</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="SKU" xml:space="preserve"><value>SKU</value></data>
+  <data name="ProductImage" xml:space="preserve"><value>Image</value></data>
+  <data name="PickPhoto" xml:space="preserve"><value>Pick photo</value></data>
+  <data name="DiscountPrice" xml:space="preserve"><value>Discount Price</value></data>
+  <data name="SizesCsvLabel" xml:space="preserve"><value>Sizes (e.g. S,M,L)</value></data>
+  <data name="Published" xml:space="preserve"><value>Published</value></data>
+  <data name="OnlyImagesAllowed" xml:space="preserve"><value>Images only</value></data>
+  <data name="ProductSaved" xml:space="preserve"><value>Product saved</value></data>
+  <data name="SaveProductFailed" xml:space="preserve"><value>Save failed</value></data>
+  <data name="ProductDeleted" xml:space="preserve"><value>Product deleted</value></data>
+  <data name="DeleteProductFailed" xml:space="preserve"><value>Delete failed</value></data>
 </root>

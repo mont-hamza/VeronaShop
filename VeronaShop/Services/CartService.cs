@@ -47,6 +47,27 @@ namespace VeronaShop.Services
             catch { }
         }
 
+        public async Task UpdateItemSizeAsync(int cartItemId, string? newSize)
+        {
+            using var db = _dbFactory.CreateDbContext();
+            var item = await db.CartItems.Include(ci => ci.Cart).Include(ci => ci.Product).FirstOrDefaultAsync(ci => ci.Id == cartItemId);
+            if (item == null) return;
+
+            item.SizeName = newSize ?? string.Empty;
+            await db.SaveChangesAsync();
+
+            try
+            {
+                var sessionId = item.Cart?.SessionId;
+                if (!string.IsNullOrEmpty(sessionId))
+                {
+                    var count = await GetCartItemCountAsync(sessionId);
+                    CartCountChanged?.Invoke(count);
+                }
+            }
+            catch { }
+        }
+
         public async Task<Cart> GetOrCreateCartAsync(string sessionId = null, int? customerId = null)
         {
             if (string.IsNullOrEmpty(sessionId))

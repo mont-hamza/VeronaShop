@@ -1,4 +1,7 @@
 using System.Text;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace VeronaShop.Services
 {
@@ -11,11 +14,25 @@ namespace VeronaShop.Services
             _emailSender = emailSender;
         }
 
-        public async Task<byte[]> GenerateInvoicePdfAsync(Data.Entites.Invoice invoice)
+        public Task<byte[]> GenerateInvoicePdfAsync(Data.Entites.Invoice invoice)
         {
-            // Simple placeholder PDF content as bytes (replace with QuestPDF for real use)
-            var text = $"Invoice #{invoice.Id}\nAmount: {invoice.Amount}\nIssued: {invoice.IssuedAt}";
-            return Encoding.UTF8.GetBytes(text);
+            var bytes = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Margin(40);
+                    page.Header().Text($"Invoice #{invoice.Id}").FontSize(18).SemiBold();
+                    page.Content().Column(col =>
+                    {
+                        col.Item().Text($"Order: {invoice.OrderId}");
+                        col.Item().Text($"Issued: {invoice.IssuedAt:u}");
+                        col.Item().Text($"Amount: {invoice.Amount:C}").Bold();
+                        if (!string.IsNullOrWhiteSpace(invoice.Notes))
+                            col.Item().Text(invoice.Notes);
+                    });
+                });
+            }).GeneratePdf();
+            return Task.FromResult(bytes);
         }
 
         public async Task SendInvoiceAsync(Data.Entites.Invoice invoice)

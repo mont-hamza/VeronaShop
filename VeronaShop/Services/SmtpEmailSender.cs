@@ -23,15 +23,19 @@ namespace VeronaShop.Services
         {
             using var client = new SmtpClient(_host, _port)
             {
-                Credentials = new NetworkCredential(_user, _pass),
-                EnableSsl = true
+                Credentials = string.IsNullOrWhiteSpace(_user) ? CredentialCache.DefaultNetworkCredentials : new NetworkCredential(_user, _pass),
+                EnableSsl = true,
+                Timeout = 15000
             };
 
-            var message = new MailMessage(_user, to, subject, html) { IsBodyHtml = true };
+            using var message = new MailMessage(_user ?? string.Empty, to, subject, html) { IsBodyHtml = true };
             if (attachment != null && attachmentName != null)
             {
-                var stream = new System.IO.MemoryStream(attachment);
-                message.Attachments.Add(new Attachment(stream, attachmentName));
+                using var stream = new System.IO.MemoryStream(attachment);
+                var attach = new Attachment(stream, attachmentName);
+                message.Attachments.Add(attach);
+                await client.SendMailAsync(message);
+                return;
             }
 
             await client.SendMailAsync(message);
