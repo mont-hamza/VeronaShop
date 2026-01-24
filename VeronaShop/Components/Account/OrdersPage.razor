@@ -14,6 +14,12 @@
 
 <PageTitle>@L["MyOrdersTitle"]</PageTitle>
 
+<style>
+  /* Temporarily hide all buttons in orders page except the View Details button */
+  .orders-page .mud-button { display: none; }
+  .orders-page .mud-button.keep-visible { display: inline-flex; }
+</style>
+
 <div class="orders-page">
     <h3>@L["MyOrdersTitle"]</h3>
 
@@ -76,7 +82,7 @@
                                     </div>
                                 </div>
                                 <div class="text-right">
-                                    <MudText Typo="Typo.subtitle1" Class="mb-1">@o.TotalAmount.ToString("C")</MudText>
+                                    <MudText Typo="Typo.subtitle1" Class="mb-1">@($"LYD {o.TotalAmount:N2}")</MudText>
                                     <MudChip T="string" Color="@(GetChipColor(o.Status))" Variant="Variant.Filled">@o.Status</MudChip>
                                 </div>
                             </div>
@@ -86,7 +92,7 @@
                             <div class="order-items-compact">
                                 @foreach (var it in o.OrderProducts.Take(3))
                                 {
-                                    <div class="d-flex justify-space-between"><div>@it.ProductName</div><div class="muted">@it.Quantity x @it.UnitPrice.ToString("C")</div></div>
+                                    <div class="d-flex justify-space-between"><div>@it.ProductName</div><div class="muted">@it.Quantity x @($"LYD {it.UnitPrice:N2}")</div></div>
                                 }
                                 @if (o.OrderProducts.Count > 3)
                                 {
@@ -95,8 +101,7 @@
                             </div>
 
                             <div class="d-flex justify-space-between align-center mt-3">
-                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => GoToOrder(o.Id))">@L["ViewDetails"]</MudButton>
-                                
+                                    <MudButton Class="keep-visible" Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => GoToOrder(o.Id))">@L["ViewDetails"]</MudButton>
                             </div>
                         </MudCardContent>
                     </MudCard>
@@ -108,6 +113,7 @@
             <MudText Typo="Typo.caption">@string.Format(L["PageOf"], page+1, TotalPages)</MudText>
             <MudButton Disabled="@(page>=TotalPages-1)" OnClick="@( () => { NextPage(); StateHasChanged(); } )">@L["Next"]</MudButton>
         </div>
+
     }
 </div>
 
@@ -127,6 +133,8 @@
     private string sortBy = "date_desc";
     private int page = 0;
     private int pageSize = 6;
+    
+    [Inject] private ISnackbar Snackbar { get; set; }
 
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(viewOrders.Count / (double)pageSize));
 
@@ -222,9 +230,20 @@
                 baseQuery = baseQuery.Where(o => o.Customer != null && o.Customer.IdentityUserId == appUser.Id);
             }
 
-            // server-side paging: get total count and fetch page
+            // apply status filter
+            if (selectedStatus.HasValue)
+                baseQuery = baseQuery.Where(o => o.Status == selectedStatus.Value);
+
+            // server-side paging: get total count and fetch page with sorting
             totalOrders = await baseQuery.CountAsync();
-            var q = baseQuery.OrderByDescending(o => o.OrderDate).Skip(page * pageSize).Take(pageSize).Include(o => o.OrderProducts);
+            IOrderedQueryable<Orders> ordered = sortBy switch
+            {
+                "date_asc" => baseQuery.OrderBy(o => o.OrderDate),
+                "total_desc" => baseQuery.OrderByDescending(o => o.TotalAmount),
+                "total_asc" => baseQuery.OrderBy(o => o.TotalAmount),
+                _ => baseQuery.OrderByDescending(o => o.OrderDate)
+            };
+            var q = ordered.Skip(page * pageSize).Take(pageSize).Include(o => o.OrderProducts);
             isLoading = true;
             StateHasChanged();
             var pageOrders = await q.AsSplitQuery().ToListAsync();
@@ -243,6 +262,7 @@
                 var prods = await prodsQuery.ToListAsync();
                 productLookup = prods.ToDictionary(p => p.Id, p => p);
             }
+
         }
         catch (Exception ex)
         {
@@ -319,8 +339,19 @@
             else
                 baseQuery = baseQuery.Where(o => o.Customer != null && o.Customer.IdentityUserId == appUser.Id);
 
+            // apply status filter
+            if (selectedStatus.HasValue)
+                baseQuery = baseQuery.Where(o => o.Status == selectedStatus.Value);
+
             totalOrders = await baseQuery.CountAsync();
-            var q = baseQuery.OrderByDescending(o => o.OrderDate).Skip(page * pageSize).Take(pageSize).Include(o => o.OrderProducts);
+            IOrderedQueryable<Orders> ordered = sortBy switch
+            {
+                "date_asc" => baseQuery.OrderBy(o => o.OrderDate),
+                "total_desc" => baseQuery.OrderByDescending(o => o.TotalAmount),
+                "total_asc" => baseQuery.OrderBy(o => o.TotalAmount),
+                _ => baseQuery.OrderByDescending(o => o.OrderDate)
+            };
+            var q = ordered.Skip(page * pageSize).Take(pageSize).Include(o => o.OrderProducts);
             isLoading = true;
             StateHasChanged();
             serverOrders = await q.AsSplitQuery().ToListAsync();
@@ -334,6 +365,7 @@
                 var prods = await prodsQuery.ToListAsync();
                 productLookup = prods.ToDictionary(p => p.Id, p => p);
             }
+
         }
         catch (Exception ex)
         {
@@ -341,4 +373,6 @@
         }
         StateHasChanged();
     }
+
+    
 }

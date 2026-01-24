@@ -51,7 +51,7 @@ builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
 // other libraries (Identity) that expect a scoped DbContext can still get one.
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
 
-builder.Services.AddIdentity<ApplicationUser, IdentityRole<int>>(options => { options.SignIn.RequireConfirmedAccount = true; })
+builder.Services.AddIdentity<ApplicationUser, IdentityRole<int>>(options => { options.SignIn.RequireConfirmedAccount = false; })
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
@@ -75,33 +75,45 @@ builder.Services.AddServerSideBlazor().AddCircuitOptions(options =>
 builder.Services.AddSignalR();
 
 // App services
-var smtpHost = builder.Configuration["Smtp:Host"];
-var smtpPort = int.TryParse(builder.Configuration["Smtp:Port"], out var p) ? p : 587;
-var smtpUser = builder.Configuration["Smtp:User"] ?? string.Empty;
-var smtpPass = builder.Configuration["Smtp:Pass"] ?? string.Empty;
+var sendGridKey = builder.Configuration["SendGrid:ApiKey"];
+var sendGridFrom = builder.Configuration["SendGrid:FromEmail"] ?? builder.Configuration["Smtp:User"] ?? "no-reply@veronashop.local";
+var sendGridFromName = builder.Configuration["SendGrid:FromName"] ?? builder.Configuration["Smtp:FromName"] ?? "VeronaShop";
 
-if (!string.IsNullOrWhiteSpace(smtpHost))
+if (!string.IsNullOrWhiteSpace(sendGridKey))
 {
-    // FluentEmail setup (Razor renderer + MailKit SMTP sender). Gmail typically requires StartTls.
-    builder.Services
-        .AddFluentEmail(string.IsNullOrWhiteSpace(smtpUser) ? "no-reply@veronashop.local" : smtpUser, builder.Configuration["Smtp:FromName"] ?? "VeronaShop")
-        .AddRazorRenderer()
-        .AddMailKitSender(new SmtpClientOptions
-        {
-            Server = smtpHost,
-            Port = smtpPort,
-            User = smtpUser,
-            Password = smtpPass,
-            UseSsl = false,
-            SocketOptions = MailKit.Security.SecureSocketOptions.StartTlsWhenAvailable
-        });
-
-    builder.Services.AddScoped<IEmailSender, FluentEmailSenderAdapter>();
+    // Use official SendGrid SDK
+    builder.Services.AddScoped<IEmailSender>(sp => new SendGridEmailSender(sendGridKey, sendGridFrom, sendGridFromName));
 }
 else
 {
-    // No SMTP configured: fallback to dev logger sender
-    builder.Services.AddScoped<IEmailSender, DevEmailSender>();
+    var smtpHost = builder.Configuration["Smtp:Host"];
+    var smtpPort = int.TryParse(builder.Configuration["Smtp:Port"], out var p) ? p : 587;
+    var smtpUser = builder.Configuration["Smtp:User"] ?? string.Empty;
+    var smtpPass = builder.Configuration["Smtp:Pass"] ?? string.Empty;
+
+    if (!string.IsNullOrWhiteSpace(smtpHost))
+    {
+        // FluentEmail setup (Razor renderer + MailKit SMTP sender). Gmail typically requires StartTls.
+        builder.Services
+            .AddFluentEmail(string.IsNullOrWhiteSpace(smtpUser) ? "no-reply@veronashop.local" : smtpUser, builder.Configuration["Smtp:FromName"] ?? "VeronaShop")
+            .AddRazorRenderer()
+            .AddMailKitSender(new SmtpClientOptions
+            {
+                Server = smtpHost,
+                Port = smtpPort,
+                User = smtpUser,
+                Password = smtpPass,
+                UseSsl = false,
+                SocketOptions = MailKit.Security.SecureSocketOptions.StartTlsWhenAvailable
+            });
+
+        builder.Services.AddScoped<IEmailSender, FluentEmailSenderAdapter>();
+    }
+    else
+    {
+        // No SMTP configured: fallback to dev logger sender
+        builder.Services.AddScoped<IEmailSender, DevEmailSender>();
+    }
 }
 
 

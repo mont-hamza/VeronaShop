@@ -24,6 +24,10 @@ else
     <div class="product-detail">
         <img src="@(string.IsNullOrEmpty(product.ImageUrl) ? "images/placeholder.svg" : product.ImageUrl)" alt="@product.Name" style="max-width:300px;height:auto;object-fit:cover" />
         <h2>@product.Name</h2>
+        @if (product.Category != null)
+        {
+            <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Outlined" Class="mb-2">@product.Category.Name</MudChip>
+        }
         <p>@product.Description</p>
         <p>@L["PriceLabel"]: @($"LYD {product.Price:N2}")</p>
         <p>@L["StockLabel"]: @product.StockQuantity</p>

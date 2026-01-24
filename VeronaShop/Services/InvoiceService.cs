@@ -12,6 +12,8 @@ namespace VeronaShop.Services
         public InvoiceService(IEmailSender emailSender)
         {
             _emailSender = emailSender;
+            // Configure QuestPDF license (required by QuestPDF 2024+)
+            QuestPDF.Settings.License = LicenseType.Community;
         }
 
         public Task<byte[]> GenerateInvoicePdfAsync(Data.Entites.Invoice invoice)

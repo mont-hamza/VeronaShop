@@ -1,0 +1,45 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@using VeronaShop.Data
+@using VeronaShop.Data.Entites
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <EditForm Model="Model" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="Model.Name" Label="Category Name" Required="true" />
+            <MudTextField @bind-Value="Model.Description" Label="Description" Lines="3" />
+            
+            <div class="mt-4 d-flex justify-end">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="Cancel" Class="ml-2">Cancel</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; }
+
+    private Category Model { get; set; } = new Category();
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            db.Categories.Add(Model);
+            await db.SaveChangesAsync();
+            Snackbar.Add("Category added", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to add category: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+}

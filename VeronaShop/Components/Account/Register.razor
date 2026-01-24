@@ -11,7 +11,6 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
-@inject VeronaShop.Services.IEmailSender EmailSender
 @inject IJSRuntime JSRuntime
 @inject RoleManager<IdentityRole<int>> RoleManager
 @using Microsoft.Extensions.Logging
@@ -114,30 +113,7 @@ private string errorMessage;
         {
             statusMessage = L["UserCreated"];
             StateHasChanged();
-            // create Customer record
-            var customer = new VeronaShop.Data.Entites.Customer
-            {
-                Name = registerModel.DisplayName ?? registerModel.UserName,
-                Email = registerModel.Email,
-                Phone = registerModel.Phone ?? string.Empty,
-                Address = registerModel.Address ?? string.Empty,
-                City = registerModel.City ?? string.Empty,
-                Region = registerModel.Region ?? string.Empty,
-                Country = registerModel.Country ?? string.Empty,
-                DateOfBirth = registerModel.DateOfBirth,
-                CreatedAt = DateTimeOffset.UtcNow
-            };
-            // Use a short-lived DbContext for writes from Blazor component
-            using (var db = DbFactory.CreateDbContext())
-            {
-                db.Customers.Add(customer);
-                await db.SaveChangesAsync();
 
-                // link customer to identity user
-                customer.IdentityUserId = user.Id;
-                db.Customers.Update(customer);
-                await db.SaveChangesAsync();
-            }
             // assign default role (ensure role exists)
             try
             {
@@ -152,23 +128,8 @@ private string errorMessage;
             {
                 try { Logger.LogWarning(ex, "Failed to assign Customer role to {User}", user.UserName); } catch { }
             }
-            // Send confirmation email with token/link
-            try
-            {
-                var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
-                var encoded = System.Net.WebUtility.UrlEncode(code);
-                var callbackUrl = Navigation.ToAbsoluteUri($"/account/confirm?userId={user.Id}&code={encoded}").ToString();
-                var body = $"<p>Please confirm your account by clicking <a href='{callbackUrl}'>here</a>.</p><p>Or use this code: <b>{System.Net.WebUtility.HtmlEncode(code)}</b></p>";
-                await EmailSender.SendEmailAsync(user.Email, L["ConfirmEmailSubject"], body);
-                Snackbar.Add(L["ConfirmationEmailSent"], Severity.Info);
-            }
-            catch (Exception ex)
-            {
-                try { Logger.LogWarning(ex, "Failed to send confirmation email for {User}", user.UserName); } catch { }
-                Snackbar.Add(L["ConfirmationEmailFailed"], Severity.Warning);
-            }
-
-            Navigation.NavigateTo($"/account/confirm?userId={user.Id}");
+            // Directly sign in or redirect to login page
+            Navigation.NavigateTo("/account/login");
             return;
         }
         else

@@ -11,6 +11,8 @@
 @inject ILogger<Shop> Logger
 @using MudBlazor
 @using VeronaShop.Components.ProductComponents
+@using VeronaShop.Components.AdminComponents
+@using VeronaShop.Data.Entites
 @inject Microsoft.Extensions.Localization.IStringLocalizer<SharedResources> L
 
 <MudContainer Class="mt-6">
@@ -27,13 +29,40 @@
     {
         <MudAlert Severity="Severity.Error">@loadError</MudAlert>
     }
-    else if (products == null)
-    {
-        <MudProgressCircular Indeterminate="true" />
-    }
     else
     {
-        <MudGrid GutterSize="GutterSize.Small">
+        <div class="mb-4 d-flex align-center gap-2 flex-wrap">
+            <MudChipSet T="int?" SelectedValue="selectedCategoryId" SelectedValueChanged="CategoryChanged" CheckMark="true">
+                <MudChip T="int?" Value="null" Variant="Variant.Filled" Color="Color.Primary">All</MudChip>
+                @if (categories != null)
+                {
+                    @foreach (var cat in categories)
+                    {
+                        <AuthorizeView Roles="Admin" Context="authContext">
+                            <Authorized>
+                                <MudChip T="int?" Value="@cat.Id" Variant="Variant.Outlined" Color="Color.Secondary" Style="border-radius:16px;" OnClose="@(() => DeleteCategory(cat))">@cat.Name</MudChip>
+                            </Authorized>
+                            <NotAuthorized>
+                                <MudChip T="int?" Value="@cat.Id" Variant="Variant.Outlined" Color="Color.Secondary" Style="border-radius:16px;">@cat.Name</MudChip>
+                            </NotAuthorized>
+                        </AuthorizeView>
+                    }
+                }
+            </MudChipSet>
+            <AuthorizeView Roles="Admin">
+                <Authorized>
+                    <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Success" Size="Size.Small" OnClick="AddCategory" Title="Add Category" />
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
+        @if (products == null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <MudGrid GutterSize="GutterSize.Small">
             @foreach (var p in products)
             {
                 <MudItem xs="12" sm="6" md="4" lg="3">
@@ -58,58 +87,138 @@
                 </MudItem>
             }
         </MudGrid>
+        }
     }
 </MudContainer>
 
 @code {
-    private List<VeronaShop.Data.Entites.Product> products;
-    private string loadError;
+private List<Product> allProducts;
+private List<Product> products;
+private List<Category> categories;
+private int? selectedCategoryId;
+private string loadError;
 
-    private void NavigateToAdminProducts()
-    {
-        Navigation.NavigateTo("/admin/products");
-    }
+private void NavigateToAdminProducts()
+{
+    Navigation.NavigateTo("/admin/products");
+}
 
-    private void NavigateToEditProduct(int id)
-    {
-        Navigation.NavigateTo($"/admin/products?edit={id}");
-    }
+private void NavigateToEditProduct(int id)
+{
+    Navigation.NavigateTo($"/admin/products?edit={id}");
+}
 
-    protected override async Task OnInitializedAsync()
+protected override async Task OnInitializedAsync()
+{
+    await LoadDataAsync();
+}
+
+private async Task LoadDataAsync()
+{
+    try
     {
+        using var db = DbFactory.CreateDbContext();
+            
+        // Load categories
+        categories = await db.Categories.OrderBy(c => c.Name).ToListAsync();
+
+        // Load products first without joining ProductImages. The ProductImages table may not exist until migrations are applied.
+        allProducts = await db.Products.Include(p => p.Category).OrderByDescending(p => p.CreatedAt).ToListAsync();
+
         try
         {
-            using var db = DbFactory.CreateDbContext();
-            // Load products first without joining ProductImages. The ProductImages table may not exist until migrations are applied.
-            products = await db.Products.Include(p => p.Category).OrderByDescending(p => p.CreatedAt).ToListAsync();
-
-            try
+            // attempt to load images if the table exists; if not, this will throw and we'll ignore images.
+            var productIds = allProducts.Select(p => p.Id).ToList();
+            var imgs = await db.ProductImages.Where(pi => productIds.Contains(pi.ProductId)).ToListAsync();
+            var lookup = imgs.GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.OrderBy(i => i.SortOrder).ToList());
+            foreach (var p in allProducts)
             {
-                // attempt to load images if the table exists; if not, this will throw and we'll ignore images.
-                var productIds = products.Select(p => p.Id).ToList();
-                var imgs = await db.ProductImages.Where(pi => productIds.Contains(pi.ProductId)).ToListAsync();
-                var lookup = imgs.GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.OrderBy(i => i.SortOrder).ToList());
-                foreach (var p in products)
-                {
-                    if (lookup.TryGetValue(p.Id, out var list))
-                        p.Images = list;
-                }
-            }
-            catch (Exception imgEx)
-            {
-                // If ProductImages table is missing or another error occurs, continue without images.
-                Logger.LogWarning("ProductImages not available: {Message}", imgEx.Message);
+                if (lookup.TryGetValue(p.Id, out var list))
+                    p.Images = list;
             }
         }
-        catch (Exception ex)
+        catch (Exception imgEx)
         {
-            loadError = "Unable to load products. Please check your database connection or try again later.";
-            Logger.LogError(ex, "Unable to load products");
+            // If ProductImages table is missing or another error occurs, continue without images.
+            Logger.LogWarning("ProductImages not available: {Message}", imgEx.Message);
+        }
+            
+        FilterProducts();
+    }
+    catch (Exception ex)
+    {
+        loadError = "Unable to load products. Please check your database connection or try again later.";
+        Logger.LogError(ex, "Unable to load products");
+    }
+}
+
+private void CategoryChanged(int? catId)
+{
+    selectedCategoryId = catId;
+    FilterProducts();
+}
+
+private void FilterProducts()
+{
+    if (allProducts == null) return;
+    if (selectedCategoryId == null)
+    {
+        products = allProducts.ToList();
+    }
+    else
+    {
+        products = allProducts.Where(p => p.CategoryId == selectedCategoryId).ToList();
+    }
+}
+
+    private async Task AddCategory()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true };
+        var dialog = DialogService.Show<CategoryDialog>("Add Category", options);
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task DeleteCategory(Category cat)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Delete Category", 
+            $"Are you sure you want to delete '{cat.Name}'? Products in this category will become uncategorized.", 
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                using var db = DbFactory.CreateDbContext();
+                // Ensure we are deleting the entity from the current context
+                var toDelete = await db.Categories.FindAsync(cat.Id);
+                if (toDelete != null)
+                {
+                    db.Categories.Remove(toDelete);
+                    await db.SaveChangesAsync();
+                    Snackbar.Add($"Category '{cat.Name}' deleted", Severity.Success);
+                    
+                    // Reset selection if the deleted category was selected
+                    if (selectedCategoryId == cat.Id)
+                        selectedCategoryId = null;
+                        
+                    await LoadDataAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to delete category");
+                Snackbar.Add("Failed to delete category", Severity.Error);
+            }
         }
     }
 
     private async Task AddToCart(int productId)
-    {
+{
         try
         {
             var p = products.FirstOrDefault(x => x.Id == productId);

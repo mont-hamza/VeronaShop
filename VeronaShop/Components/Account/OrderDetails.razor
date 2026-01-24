@@ -30,9 +30,11 @@
                 </div>
                 <div class="d-flex" style="gap:8px;align-items:center;">
                     <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled">@order.Status.ToString()</MudChip>
+                    @* Action buttons temporarily hidden
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PrintInvoice" StartIcon="@Icons.Material.Filled.Print">@L["Print"]</MudButton>
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="DownloadInvoice" StartIcon="@Icons.Material.Filled.Download">@L["DownloadPDF"]</MudButton>
                     <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="EmailInvoice" StartIcon="@Icons.Material.Filled.Email">@L["EmailInvoice"]</MudButton>
+                    *@
                 </div>
             </div>
         </MudPaper>

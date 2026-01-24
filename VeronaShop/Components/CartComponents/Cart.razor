@@ -57,7 +57,7 @@ else
             </MudTd>
             <MudTd>@($"LYD {context.UnitPrice:N2}")</MudTd>
             <MudTd>
-                <MudNumericField T="int" @bind-Value="context.Quantity" Min="1" Immediate="true" OnBlur="@(async () => await UpdateQuantity(context.Id, context.Quantity))" />
+                <MudNumericField T="int" Value="context.Quantity" Min="1" Immediate="false" ValueChanged="@(async (val) => await UpdateQuantity(context.Id, val))" />
             </MudTd>
             <MudTd>@($"LYD {(context.UnitPrice * context.Quantity):N2}")</MudTd>
             <MudTd>

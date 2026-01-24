@@ -48,6 +48,7 @@
                 <MudText Typo="Typo.body2" Class="mt-2">@("Sizes: " + string.Join(", ", AvailableSizes))</MudText>
             }
             <div class="mt-4 d-flex" style="gap:8px;align-items:center;">
+                <MudNumericField T="int" @bind-Value="qty" Min="1" Dense="true" Style="width:120px" />
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(async () => await AddToCart())">@L["AddToCart"]</MudButton>
             </div>
         </div>
@@ -67,7 +68,14 @@
         {
             var sessionId = await CartSession.GetOrCreateSessionIdAsync();
             var cart = await CartService.GetOrCreateCartAsync(sessionId);
-            await CartService.AddToCartAsync(cart, Product.Id, 1, null, null);
+            // honor size selection if available
+            string? sizeName = null;
+            if (!string.IsNullOrWhiteSpace(Product?.SizesCsv))
+            {
+                // keep it simple: pick first size for quick view; full details page has selector
+                sizeName = AvailableSizes.FirstOrDefault();
+            }
+            await CartService.AddToCartAsync(cart, Product.Id, qty <= 0 ? 1 : qty, null, sizeName);
             Snackbar.Add(L["AddedToCart"], Severity.Success);
             success = true;
         }
@@ -84,6 +92,8 @@
 
     private List<string> AvailableSizes =>
         string.IsNullOrWhiteSpace(Product?.SizesCsv) ? new List<string>() : Product.SizesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+
+    private int qty = 1;
 
     private void Close()
     {

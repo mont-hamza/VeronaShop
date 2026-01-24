@@ -46,6 +46,18 @@
                 <MudTextField @bind-Value="editingProduct.Price" Label="@L["Price"]" InputType="InputType.Number" Required="true" />
                 <MudTextField @bind-Value="editingProduct.DiscountPrice" Label="@L["DiscountPrice"]" InputType="InputType.Number" />
                 <MudTextField @bind-Value="editingProduct.StockQuantity" Label="@L["StockQuantity"]" InputType="InputType.Number" />
+                
+                <MudSelect T="int?" Label="@L["Category"]" @bind-Value="editingProduct.CategoryId" Class="mb-3">
+                    <MudSelectItem T="int?" Value="null">Uncategorized</MudSelectItem>
+                    @if (categories != null)
+                    {
+                        @foreach (var cat in categories)
+                        {
+                            <MudSelectItem T="int?" Value="@cat.Id">@cat.Name</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+
                 <MudTextField @bind-Value="editingProduct.SizesCsv" Label="@L["SizesCsvLabel"]" />
                 <MudCheckBox T="bool" @bind-Checked="editingProduct.IsPublished">@L["Published"]</MudCheckBox>
 
@@ -100,8 +112,9 @@
 </MudPaper>
 
 @code {
-    private List<Product> products = new();
-    private List<Product> filteredProducts = new();
+private List<Product> products = new();
+private List<Category> categories = new();
+private List<Product> filteredProducts = new();
     private string search;
     private Product editingProduct;
     private Product productToDelete;
@@ -140,6 +153,7 @@
     private async Task LoadProducts()
     {
         using var db = DbFactory.CreateDbContext();
+        categories = await db.Categories.OrderBy(c => c.Name).ToListAsync();
         products = await db.Products.Include(p => p.Category).Include(p => p.Supplier).OrderByDescending(p => p.CreatedAt).ToListAsync();
         ApplyFilter();
     }
